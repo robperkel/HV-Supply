@@ -282,6 +282,8 @@ void main(void) {
                 screen = PARM_HOME;
                 ParmMode();
                 HomeScreenUI();
+                button = 0;
+                IOCCF = 0x0;
             }
             else if ((screen == EDIT_SET) || (screen == EDIT_LIM))
             {
