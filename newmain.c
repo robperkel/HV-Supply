@@ -65,6 +65,10 @@ typedef enum {
     OUTPUT = -1, ABOUT, HOME, EDIT_SET, EDIT_LIM, LIM_HOME, PARM_HOME, MODE
 } Screen;
 
+typedef enum {
+    VOLTAGE_SOURCE = 0, CURRENT_SOURCE, BREAKDOWN_TEST
+} SystemMode;
+
 typedef enum{
     VOLTAGE = 0, CURRENT = 1
 } Modification;
@@ -76,6 +80,7 @@ void OutputModeUI(); //Draw the Output
 void DrawParmUI(); //Draws the UI
 void ParmMode(); //Parm Edit Mode Loop
 void RunAbout(); //Info / Welcome Screen
+void ModeSelect(); //Select a Mode
 void DrawLimitUI();
 
 void GotoSleep()
@@ -91,10 +96,11 @@ void RestoreCursor(int digit);
 void ButtonHit();
 uint button = 0;
 
-Screen sysMode = HOME;
+Screen screen = HOME;
 Modification sysDir = VOLTAGE;
+SystemMode sysMode = VOLTAGE_SOURCE;
 
-static int Version = 3;
+static int Version;
 
 void main(void) {    
     //Fosc = 4MHz, 1MHz Output, 1uS Cycle   
@@ -107,7 +113,7 @@ void main(void) {
     ANSELC = 0x0F;
     PORTC = 0x0;
     
-    Version = 3;
+    Version = 4;
     PIE0bits.IOCIE = 0b1; //Enable interrupt-on-change
     IOCCP = 0xF0; //Enable RC4-RC7 rising edge interrupts
         
@@ -144,27 +150,28 @@ void main(void) {
     OutputBuffer[8] = 0x72;
     OutputBuffer[9] = 0x6C;
     OutputBuffer[10] = 0x64;*/
-    sysMode = HOME;
+    screen = HOME;
+    sysMode = VOLTAGE_SOURCE;
     RunAbout();
     HomeScreenUI();
     while (1 == 1)
     {
         if (button == 7)
         {
-            if (sysMode == HOME)
+            if (screen == HOME)
             {
                 digit = 3;
                 //baseVal = 1000;
-                sysMode = EDIT_SET;
+                screen = EDIT_SET;
                 sysDir = VOLTAGE;
                 SayHelloCommand();
                 Write(CMD_CURSOR_ON);
                 CloseLCD();
                 RestoreCursor(digit);
             }
-            else if (sysMode == LIM_HOME)
+            else if (screen == LIM_HOME)
             {
-                sysMode = EDIT_LIM;
+                screen = EDIT_LIM;
                 sysDir = VOLTAGE;
                 digit = 3;
                 SayHelloCommand();
@@ -172,21 +179,21 @@ void main(void) {
                 CloseLCD();
                 RestoreCursor(digit);
             }
-            else if ((sysMode == EDIT_LIM) && (sysDir == VOLTAGE))
+            else if ((screen == EDIT_LIM) && (sysDir == VOLTAGE))
             {
-                sysMode = LIM_HOME;
+                screen = LIM_HOME;
                 SayHelloCommand();
                 Write(CMD_CURSOR_OFF);
                 CloseLCD();
             }
-            else if ((sysMode == EDIT_SET) && (sysDir == VOLTAGE))
+            else if ((screen == EDIT_SET) && (sysDir == VOLTAGE))
             {
-                sysMode = HOME;
+                screen = HOME;
                 SayHelloCommand();
                 Write(CMD_CURSOR_OFF);
                 CloseLCD();
             }
-            else if ((sysMode == EDIT_SET) && (sysDir == CURRENT))
+            else if ((screen == EDIT_SET) && (sysDir == CURRENT))
             {
                 IOutDigits[digit]++;
                 if (IOutDigits[digit] > 9)
@@ -195,7 +202,7 @@ void main(void) {
                 HomeScreenUI();
                 RestoreCursor(digit);
             }
-            else if ((sysMode == EDIT_LIM) && (sysDir == CURRENT))
+            else if ((screen == EDIT_LIM) && (sysDir == CURRENT))
             {
                 ILimDigits[digit]++;
                 if (ILimDigits[digit] > 9)
@@ -205,22 +212,22 @@ void main(void) {
                 RestoreCursor(digit);
             }
         }
-        if (button == 6)
+        else if (button == 6)
         {
-            if (sysMode == HOME)
+            if (screen == HOME)
             {
                 digit = 3;
                 //baseVal = 10;
-                sysMode = EDIT_SET;
+                screen = EDIT_SET;
                 sysDir = CURRENT;
                 SayHelloCommand();
                 Write(CMD_CURSOR_ON);
                 CloseLCD();
                 RestoreCursor(digit);
             }
-            else if (sysMode == LIM_HOME)
+            else if (screen == LIM_HOME)
             {
-                sysMode = EDIT_LIM;
+                screen = EDIT_LIM;
                 sysDir = CURRENT;
                 digit = 3;
                 SayHelloCommand();
@@ -228,21 +235,21 @@ void main(void) {
                 CloseLCD();
                 RestoreCursor(digit);
             }
-            else if ((sysMode == EDIT_SET) && (sysDir == CURRENT))
+            else if ((screen == EDIT_SET) && (sysDir == CURRENT))
             {
-                sysMode = HOME;
+                screen = HOME;
                 SayHelloCommand();
                 Write(CMD_CURSOR_OFF);
                 CloseLCD();
             }
-            else if ((sysMode == EDIT_LIM) && (sysDir == CURRENT))
+            else if ((screen == EDIT_LIM) && (sysDir == CURRENT))
             {
-                sysMode = LIM_HOME;
+                screen = LIM_HOME;
                 SayHelloCommand();
                 Write(CMD_CURSOR_OFF);
                 CloseLCD();
             }
-            else if ((sysMode == EDIT_SET) && (sysDir == VOLTAGE))
+            else if ((screen == EDIT_SET) && (sysDir == VOLTAGE))
             {
                 VOutDigits[digit]++;
                 if (VOutDigits[digit] > 9)
@@ -251,7 +258,7 @@ void main(void) {
                 HomeScreenUI();
                 RestoreCursor(digit);
             }
-            else if ((sysMode == EDIT_LIM) && (sysDir == VOLTAGE))
+            else if ((screen == EDIT_LIM) && (sysDir == VOLTAGE))
             {
                 VLimDigits[digit]++;
                 if (VLimDigits[digit] > 9)
@@ -260,34 +267,36 @@ void main(void) {
                 HomeScreenUI();
                 RestoreCursor(digit);
             }
-            //HomeScreenUI(sysMode, 0);
+            //HomeScreenUI(screen, 0);
         }
-        if (button == 5)
+        else if (button == 5)
         {
-            if ((sysMode == HOME))
+            if ((screen == HOME))
             {
-                sysMode = PARM_HOME;
+                screen = PARM_HOME;
                 ParmMode();
                 HomeScreenUI();
             }
-            else if (sysMode == LIM_HOME)
+            else if (screen == LIM_HOME)
             {
-                sysMode = PARM_HOME;
-                button = 0;
+                screen = PARM_HOME;
                 ParmMode();
+                HomeScreenUI();
             }
-            else if ((sysMode == EDIT_SET) || (sysMode == EDIT_LIM))
+            else if ((screen == EDIT_SET) || (screen == EDIT_LIM))
             {
                 digit--;
-                digit = digit > 0 ? digit : 0;
+                if (digit < 0)
+                    digit = 0;
                 RestoreCursor(digit);
             }
             
         }
-        if (button == 4)
+        else if (button == 4)
         {
             digit++;
-            digit = digit < 4 ? digit : 3;
+            if (digit >= 4)
+                digit = 4;
             RestoreCursor(digit);
         }
         GotoSleep();
@@ -438,7 +447,7 @@ void RunAbout()
         WriteAndClose();
     }
     
-    if (sysMode != HOME)
+    if (screen != HOME)
     {
         button = 0;
         while (button == 0)
@@ -546,26 +555,138 @@ void RunAbout()
     button = 0;
 }
 
+void ModeSelect()
+{
+    uchar letter = 0x41;
+    for (int lines = 0; lines < 4; ++lines)
+    {
+        ClearBuffer();
+        if (lines == 0)
+        {
+            //Select a mode
+            OutputBuffer[0] = 0x53;
+            OutputBuffer[1] = 0x65;
+            OutputBuffer[2] = 0x6C;
+            OutputBuffer[3] = 0x65;
+            OutputBuffer[4] = 0x63;
+            OutputBuffer[5] = 0x74;
+            //(Blank)
+            OutputBuffer[7] = 0x61;
+            //(Blank)
+            OutputBuffer[9] = 0x6D;
+            OutputBuffer[10] = 0x6F;
+            OutputBuffer[11] = 0x64;
+            OutputBuffer[12] = 0x65;
+        }
+        else
+        {
+            //(X) 
+            OutputBuffer[0] = LEFT_PAR;
+            OutputBuffer[1] = letter;
+            OutputBuffer[2] = RIGHT_PAR;
+            //(Blank)
+            if (lines == 1)
+            {
+                //Voltage
+                OutputBuffer[4] = 0x56;
+                OutputBuffer[5] = 0x6F;
+                OutputBuffer[6] = 0x6C;
+                OutputBuffer[7] = 0x74;
+                OutputBuffer[8] = 0x61;
+                OutputBuffer[9] = 0x67;
+                OutputBuffer[10] = 0x65;
+            }
+            else if (lines == 2)
+            {
+                //Current Source
+                OutputBuffer[4] = 0x43;
+                OutputBuffer[5] = 0x75;
+                OutputBuffer[6] = 0x72;
+                OutputBuffer[7] = 0x72;
+                OutputBuffer[8] = 0x65;
+                OutputBuffer[9] = 0x6E;
+                OutputBuffer[10] = 0x74;
+            }
+            else if (lines == 3)
+            {
+                //Breakdown test
+                OutputBuffer[4] = 0x42;
+                OutputBuffer[5] = 0x72;
+                OutputBuffer[6] = 0x65;
+                OutputBuffer[7] = 0x61;
+                OutputBuffer[8] = 0x6B;
+                OutputBuffer[9] = 0x64;
+                OutputBuffer[10] = 0x6F;
+                OutputBuffer[11] = 0x77;
+                OutputBuffer[12] = 0x6E;
+                //(Blank)
+                OutputBuffer[14] = 0x54;
+                OutputBuffer[15] = 0x65;
+                OutputBuffer[16] = 0x73;
+                OutputBuffer[17] = 0x74;
+            }
+            //(Blank)
+            if (lines != 3)
+            {
+                OutputBuffer[12] = 0x53;
+                OutputBuffer[13] = 0x6F;
+                OutputBuffer[14] = 0x75;
+                OutputBuffer[15] = 0x72;
+                OutputBuffer[16] = 0x63;
+                OutputBuffer[17] = 0x65;
+                //Source
+            }
+            letter++;
+        }
+        WriteAndClose();
+    }
+    while ((screen == MODE))
+    {
+        asm("CLRWDT");
+        GotoSleep();
+        ButtonHit();
+        if (button > 3)
+            screen = PARM_HOME;
+        if (button == 7)
+        {
+            sysMode = VOLTAGE_SOURCE;
+        }
+        else if (button == 6)
+        {
+            sysMode = CURRENT_SOURCE;
+        }
+        else if (button == 5)
+        {
+            sysMode = BREAKDOWN_TEST;
+        }
+    }
+    button = 0;
+    IOCCF = 0x0;
+}
+
 void ParmMode()
 {
     DrawParmUI();
-    while ((sysMode == PARM_HOME))
+    button = 0;
+    while ((screen == PARM_HOME))
     {
-        ButtonHit();
         if (button == 7)
         {
-            sysMode = LIM_HOME;
+            screen = LIM_HOME;
             button = 0;
         }
         else if (button == 6)
         {
-            //sysMode = ILIM;
+            screen = MODE;
+            ModeSelect();
+            screen = PARM_HOME;
+            DrawParmUI();
             button = 0;
             //return;
         }
         else if (button == 5)
         {
-            sysMode = HOME;
+            screen = HOME;
             button = 0;
         }
         else if (button == 4)
@@ -576,6 +697,7 @@ void ParmMode()
         }
         asm("CLRWDT");
         GotoSleep();
+        ButtonHit();
     }
 }
 
@@ -664,7 +786,7 @@ void HomeScreenUI()
         ClearBuffer();
         if (lines == 0)
         {
-            if ((sysMode != EDIT_LIM) && (sysMode != LIM_HOME))
+            if ((screen != EDIT_LIM) && (screen != LIM_HOME))
             {
                 //Editing Mode
                 OutputBuffer[0] = 0x45;
@@ -699,7 +821,7 @@ void HomeScreenUI()
             if (lines == 3)
             {
                 
-                if ((sysMode == EDIT_LIM) || (sysMode == LIM_HOME))
+                if ((screen == EDIT_LIM) || (screen == LIM_HOME))
                 {
                     //Return
                     OutputBuffer[4] = 0x52;
@@ -734,14 +856,14 @@ void HomeScreenUI()
                     OutputBuffer[4] = 0x49;
                 }
                 
-                if ((sysMode == EDIT_SET) || (sysMode == HOME))
+                if ((screen == EDIT_SET) || (screen == HOME))
                 {
                     //set
                     OutputBuffer[5] = 0x73;
                     OutputBuffer[6] = 0x65;
                     OutputBuffer[7] = 0x74;
                 }
-                else if ((sysMode == EDIT_LIM) || (sysMode == LIM_HOME))
+                else if ((screen == EDIT_LIM) || (screen == LIM_HOME))
                 {
                     //lim
                     OutputBuffer[5] = 0x6C;
@@ -753,7 +875,7 @@ void HomeScreenUI()
                 {
                     //V
                     uint pos = 0;
-                    if ((sysMode != LIM_HOME) && (sysMode != EDIT_LIM))
+                    if ((screen != LIM_HOME) && (screen != EDIT_LIM))
                     {
                          pos = writeLargeNumber(1, 9, Vout);
                     }
@@ -767,7 +889,7 @@ void HomeScreenUI()
                 {
                     //0uA
                     uint pos = 0;
-                    if ((sysMode != LIM_HOME) && (sysMode != EDIT_LIM))
+                    if ((screen != LIM_HOME) && (screen != EDIT_LIM))
                     {
                          pos = writeLargeNumber(1, 9, Iout);
                     }
