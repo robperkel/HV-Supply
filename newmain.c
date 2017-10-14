@@ -76,8 +76,12 @@ typedef enum{
 void WriteAndClose();
 
 void HomeScreenUI(); //Main Loop
+
 void OutputModeUI(); //Draw the Output
+void OutputMode(); //Handles the Output Systems
+
 void DrawParmUI(); //Draws the UI
+
 void ParmMode(); //Parm Edit Mode Loop
 void RunAbout(); //Info / Welcome Screen
 void ModeSelect(); //Select a Mode
@@ -101,6 +105,8 @@ Modification sysDir = VOLTAGE;
 SystemMode sysMode = VOLTAGE_SOURCE;
 
 static int Version;
+unsigned long Vcurr;
+unsigned long Icurr;
 
 void main(void) {    
     //Fosc = 4MHz, 1MHz Output, 1uS Cycle   
@@ -113,7 +119,10 @@ void main(void) {
     ANSELC = 0x0F;
     PORTC = 0x0;
     
-    Version = 4;
+    Vcurr = 0;
+    Icurr = 0;
+    
+    Version = 5;
     PIE0bits.IOCIE = 0b1; //Enable interrupt-on-change
     IOCCP = 0xF0; //Enable RC4-RC7 rising edge interrupts
         
@@ -296,10 +305,19 @@ void main(void) {
         }
         else if (button == 4)
         {
-            digit++;
-            if (digit >= 4)
-                digit = 4;
-            RestoreCursor(digit);
+            if (screen == HOME)
+            {
+                screen = OUTPUT;
+                OutputMode();
+                HomeScreenUI();
+            }
+            else
+            {
+                digit++;
+                if (digit >= 4)
+                    digit = 4;
+                RestoreCursor(digit);
+            }
         }
         GotoSleep();
         ButtonHit();
@@ -914,6 +932,19 @@ void HomeScreenUI()
     }
 }
 
+void OutputMode()
+{
+    button = 0;
+    OutputModeUI();
+    while (button == 0)
+    {
+        asm("CLRWDT");
+        GotoSleep();
+        ButtonHit();
+    }
+    screen = HOME;
+}
+
 void OutputModeUI()
 {
     SayHelloCommand();
@@ -926,52 +957,130 @@ void OutputModeUI()
     for (int lines = 0; lines < 4; ++lines)
     {
         ClearBuffer();
-        
-        if (lines < 2)
+        if (sysMode != BREAKDOWN_TEST)
         {
-            //V
-            OutputBuffer[4] = 0x56;
+            if (lines < 2)
+            {
+                //V
+                OutputBuffer[0] = 0x56;
+            }
+            else
+            {
+                //I
+                OutputBuffer[0] = 0x49;
+            }
+
+            if (lines % 2 == 0)
+            {
+                //set
+                OutputBuffer[1] = 0x73;
+                OutputBuffer[2] = 0x65;
+                OutputBuffer[3] = 0x74;
+            }
+            else{
+                //out
+                OutputBuffer[1] = 0x6F;
+                OutputBuffer[2] = 0x75;
+                OutputBuffer[3] = 0x74;
+            }
+            OutputBuffer[4] = COLON;
+            //OutputBuffer[9] = BLANK;
+            int pos = 0;
+            
+            if (lines == 0)
+            {
+                pos = writeLargeNumber(0, 6, Vout);
+            }
+            else if (lines == 1)
+            {
+                pos = writeLargeNumber(0, 6, Vcurr);
+            }
+            else if (lines == 2)
+            {
+                pos = writeLargeNumber(0, 6, Iout);
+            }
+            else if (lines == 3)
+            {
+                pos = writeLargeNumber(0, 6, Icurr);
+            }
+            
+            if (lines < 2)
+            {
+                //V
+                OutputBuffer[pos] = 0x56;
+            }
+            else
+            {
+                //0uA
+                OutputBuffer[pos] = NumbersBase;
+                OutputBuffer[pos + 1] = 0x75;
+                OutputBuffer[pos + 2] = 0x41;
+            }
         }
         else
         {
-            //I
-            OutputBuffer[4] = 0x49;
+            //Breakdown Test Loop
+            if (lines == 0)
+            {
+                //Vlim: xxxxV
+                OutputBuffer[0] = 0x56;
+                OutputBuffer[1] = 0x6C;
+                OutputBuffer[2] = 0x69;
+                OutputBuffer[3] = 0x6D;
+                OutputBuffer[4] = COLON;
+                //(Blank)
+                int lPos = writeLargeNumber(0, 6, Vout);
+                OutputBuffer[lPos] = 0x56;
+            }
+            else if (lines == 1)
+            {
+                //Istop: xxxxxuA
+                OutputBuffer[0] = 0x49;
+                OutputBuffer[1] = 0x73;
+                OutputBuffer[2] = 0x74;
+                OutputBuffer[3] = 0x6F;
+                OutputBuffer[4] = 0x70;
+                OutputBuffer[5] = COLON;
+                //(Blank)
+                int lPos = writeLargeNumber(0, 7, Ilim);
+                OutputBuffer[lPos] = NumbersBase;
+                OutputBuffer[lPos + 1] = 0x75;
+                OutputBuffer[lPos + 2] = 0x41;
+            }
+            else if (lines == 2)
+            {
+                
+            }
+            else
+            {
+                //Progress XX.XX%
+                OutputBuffer[0] = 0x50;
+                OutputBuffer[1] = 0x72;
+                OutputBuffer[2] = 0x6F;
+                OutputBuffer[3] = 0x67;
+                OutputBuffer[4] = 0x72;
+                OutputBuffer[5] = 0x65;
+                OutputBuffer[6] = 0x73;
+                OutputBuffer[7] = 0x73;
+                //(Blank)
+                double data = 0.0 / Vout;
+                int digit = 0;
+                if (data >= 10.0)
+                {
+                    digit = _GetDoubleDigit(data, 10);
+                    data -= digit;
+                    OutputBuffer[9] = data + NumbersBase;
+                }
+                else
+                {
+                    OutputBuffer[9] = NumbersBase;
+                }
+                digit = _GetDoubleDigit(data, 1);
+                OutputBuffer[10] = NumbersBase + digit;
+                OutputBuffer[11] = 0x25;
+            }
         }
         
-        if (lines % 2 == 0)
-        {
-            //set
-            OutputBuffer[5] = 0x73;
-            OutputBuffer[6] = 0x65;
-            OutputBuffer[7] = 0x74;
-        }
-        else{
-            //out
-            OutputBuffer[5] = 0x6F;
-            OutputBuffer[6] = 0x75;
-            OutputBuffer[7] = 0x74;
-        }
-        OutputBuffer[8] = COLON;
-        //OutputBuffer[9] = BLANK;
-        OutputBuffer[10] = NumbersBase;
-        OutputBuffer[11] = NumbersBase;
-        
-        if (lines < 2)
-        {
-            //0000V
-            OutputBuffer[12] = NumbersBase;
-            OutputBuffer[13] = NumbersBase;
-            OutputBuffer[14] = 0x56;
-        }
-        else
-        {
-            //00.00mA
-            OutputBuffer[12] = PERIOD;
-            OutputBuffer[13] = NumbersBase;
-            OutputBuffer[14] = NumbersBase;
-            OutputBuffer[15] = 0x6D;
-            OutputBuffer[16] = 0x41;
-        }
 
         WriteAndClose();
     }

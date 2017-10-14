@@ -32,6 +32,17 @@ extern "C" {
         return extract;
     }
     
+    uint _GetDoubleDigit(double in, double fact)
+    {
+        uint extract = 0;
+        for (int i = 0; in >= fact; ++i)
+        {
+            in -= fact;
+            extract++;
+        }
+        return extract;
+    }
+    
     uint writeLargeNumber(uint line, uint linePos, unsigned long number)
     {
         //Cursor Position: 0x20 * line + linePos
