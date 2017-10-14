@@ -27,7 +27,7 @@
 
 // CONFIG3L
 #pragma config WDTCPS = WDTCPS_31// WDT Period Select bits (Divider ratio 1:65536; software control of WDTPS)
-#pragma config WDTE = ON        // WDT operating mode (WDT enabled regardless of sleep)
+#pragma config WDTE = NSLEEP    // WDT operating mode (WDT enabled while sleep=0, suspended when sleep=1)
 
 // CONFIG3H
 #pragma config WDTCWS = WDTCWS_7// WDT Window Select bits (window always open (100%); software control; keyed access not required)
@@ -89,15 +89,14 @@ void DrawLimitUI();
 
 void GotoSleep()
 {
-    //CPUDOZEbits.IDLEN = 0;
-    //asm("SLEEP");
-    //PEIEbits.
+    CPUDOZEbits.IDLEN = 0;
+    asm("SLEEP");
 }
 
 void DrawLine(const char* text, double* val, uchar prefix, char unit);
 
 void RestoreCursor(int digit);
-void ButtonHit();
+void interrupt low_priority ButtonHit();
 uint button = 0;
 
 Screen screen = HOME;
@@ -119,12 +118,29 @@ void main(void) {
     ANSELC = 0x0F;
     PORTC = 0x0;
     
+    INTCONbits.GIEH = 0b1; //Enable Interrupts (HIGH)
+    INTCONbits.GIEL = 0b1; //Enable Interrupts (LOW)
+    INTCONbits.IPEN = 0b1; //Priority for Interrupts
+    INTCONbits.INT0EDG = 0b1; //Set INT0 to Rising Edge
+    
+    PIE0bits.IOCIE = 0b1; //Enable interrupt-on-change
+    PIE0bits.INT0IE = 0b1; //Enable INT0 Interrupt
+    
+    IPR0bits.IOCIP = 0b0; //Set IOC to Low Priority
+    IPR0bits.INT0IP = 0b1; //Set INT0 to High Priority
+
+    
+    IOCCP = 0xF0; //Enable RC4-RC7 rising edge interrupts
+    
+    //Move RB0 PPS to RB5 (DRDY))
+    INT0PPSbits.INT0PPS2 = 0b1;
+    INT0PPSbits.INT0PPS1 = 0b0;
+    INT0PPSbits.INT0PPS0 = 0b1;
+    
     Vcurr = 0;
     Icurr = 0;
     
-    Version = 5;
-    PIE0bits.IOCIE = 0b1; //Enable interrupt-on-change
-    IOCCP = 0xF0; //Enable RC4-RC7 rising edge interrupts
+    Version = 6; //Version of the Code (Used for Display)
         
     int digit = 0;
     
@@ -143,22 +159,6 @@ void main(void) {
     
     InitDisplay();
     
-    /*//Hello
-    OutputBuffer[0] = 0x48;
-    OutputBuffer[1] = 0x65;
-    OutputBuffer[2] = 0x6C;
-    OutputBuffer[3] = 0x6C;
-    OutputBuffer[4] = 0x6F;
-    
-    //Space
-    OutputBuffer[5] = BLANK;
-    
-    //World
-    OutputBuffer[6] = 0x57;
-    OutputBuffer[7] = 0x6F;
-    OutputBuffer[8] = 0x72;
-    OutputBuffer[9] = 0x6C;
-    OutputBuffer[10] = 0x64;*/
     screen = HOME;
     sysMode = VOLTAGE_SOURCE;
     RunAbout();
@@ -320,8 +320,7 @@ void main(void) {
             }
         }
         GotoSleep();
-        ButtonHit();
-        asm ("CLRWDT"); //Clear the WDT 
+        //ButtonHit();
     }
     return;
 }
@@ -340,8 +339,9 @@ void RestoreCursor(int digit)
     CloseLCD();
 }
 
-void ButtonHit()
+void interrupt low_priority ButtonHit()
 {
+    CPUDOZEbits.IDLEN = 0b1; //Wake up!
     button = 0;
     if (IOCCFbits.IOCCF7 == 1)
     {
@@ -463,19 +463,13 @@ void RunAbout()
             OutputBuffer[10] = 0x65;
 
         }
-        asm("CLRWDT");
         WriteAndClose();
     }
     
     if (screen != HOME)
     {
         button = 0;
-        while (button == 0)
-        {
-            asm("CLRWDT");
-            _delay(25);
-            ButtonHit();
-        }
+        GotoSleep();
         button = 0;
         return;
     }
@@ -568,9 +562,8 @@ void RunAbout()
     
     do
     {
-        asm("CLRWDT");
         GotoSleep();
-        ButtonHit();
+        //ButtonHit();
     } while (button == 0);
     button = 0;
 }
@@ -662,9 +655,8 @@ void ModeSelect()
     }
     while ((screen == MODE))
     {
-        asm("CLRWDT");
         GotoSleep();
-        ButtonHit();
+        //ButtonHit();
         if (button > 3)
             screen = PARM_HOME;
         if (button == 7)
@@ -690,6 +682,7 @@ void ParmMode()
     button = 0;
     while ((screen == PARM_HOME))
     {
+        GotoSleep();
         if (button == 7)
         {
             screen = LIM_HOME;
@@ -715,9 +708,7 @@ void ParmMode()
             RunAbout();
             DrawParmUI();
         }
-        asm("CLRWDT");
-        GotoSleep();
-        ButtonHit();
+        //ButtonHit();
     }
 }
 
@@ -938,10 +929,10 @@ void OutputMode()
     OutputModeUI();
     while (button == 0)
     {
-        asm("CLRWDT");
         GotoSleep();
-        ButtonHit();
+        //ButtonHit();
     }
+    button = 0;
     screen = HOME;
 }
 
