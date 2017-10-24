@@ -73,6 +73,12 @@ typedef enum{
     VOLTAGE = 0, CURRENT = 1
 } Modification;
 
+typedef enum{
+    NO_PRESS = -1, BUTTON_A = 0, BUTTON_B, BUTTON_C, BUTTON_D, 
+            BUTTON_LEFT, BUTTON_UP, BUTTON_DOWN, BUTTON_RIGHT,
+            FUNC, HV_ENABLE
+} Button;
+
 void WriteAndClose();
 
 void HomeScreenUI(); //Main Loop
@@ -97,7 +103,7 @@ void DrawLine(const char* text, double* val, uchar prefix, char unit);
 
 void RestoreCursor(int digit);
 void interrupt low_priority ButtonHit();
-uint button = 0;
+Button button = NO_PRESS;
 
 Screen screen = HOME;
 Modification sysDir = VOLTAGE;
@@ -150,6 +156,8 @@ void main(void) {
     int VLimDigits[4] = {0,0,0,0};
     int ILimDigits[4] = {0,0,0,0};
     
+    int* digit_ptr = 0;
+    
     for (uint i = 0; i < 20; i++)
     {
         OutputBuffer[i] = BLANK;
@@ -165,160 +173,121 @@ void main(void) {
     HomeScreenUI();
     while (1 == 1)
     {
-        if (button == 7)
+        if ((screen == HOME) || (screen == LIM_HOME))
         {
-            if (screen == HOME)
+            if (button == BUTTON_A)
             {
                 digit = 3;
-                //baseVal = 1000;
-                screen = EDIT_SET;
+                if (screen == HOME)
+                {
+                    digit_ptr = &VOutDigits[3];
+                    screen = EDIT_SET;
+                }
+                else
+                {
+                    digit_ptr = &VLimDigits[3];
+                    screen = EDIT_LIM;
+                }
                 sysDir = VOLTAGE;
                 SayHelloCommand();
                 Write(CMD_CURSOR_ON);
                 CloseLCD();
                 RestoreCursor(digit);
             }
-            else if (screen == LIM_HOME)
-            {
-                screen = EDIT_LIM;
-                sysDir = VOLTAGE;
-                digit = 3;
-                SayHelloCommand();
-                Write(CMD_CURSOR_ON);
-                CloseLCD();
-                RestoreCursor(digit);
-            }
-            else if ((screen == EDIT_LIM) && (sysDir == VOLTAGE))
-            {
-                screen = LIM_HOME;
-                SayHelloCommand();
-                Write(CMD_CURSOR_OFF);
-                CloseLCD();
-            }
-            else if ((screen == EDIT_SET) && (sysDir == VOLTAGE))
-            {
-                screen = HOME;
-                SayHelloCommand();
-                Write(CMD_CURSOR_OFF);
-                CloseLCD();
-            }
-            else if ((screen == EDIT_SET) && (sysDir == CURRENT))
-            {
-                IOutDigits[digit]++;
-                if (IOutDigits[digit] > 9)
-                    IOutDigits[digit] = 0;
-                Iout = IOutDigits[3] * 1000 + IOutDigits[2] * 100 + IOutDigits[1] * 10 + IOutDigits[0];
-                HomeScreenUI();
-                RestoreCursor(digit);
-            }
-            else if ((screen == EDIT_LIM) && (sysDir == CURRENT))
-            {
-                ILimDigits[digit]++;
-                if (ILimDigits[digit] > 9)
-                    ILimDigits[digit] = 0;
-                Ilim = ILimDigits[3] * 1000 + ILimDigits[2] * 100 + ILimDigits[1] * 10 + ILimDigits[0];
-                HomeScreenUI();
-                RestoreCursor(digit);
-            }
-        }
-        else if (button == 6)
-        {
-            if (screen == HOME)
+            else if (button == BUTTON_B)
             {
                 digit = 3;
-                //baseVal = 10;
-                screen = EDIT_SET;
+                if (screen == HOME)
+                {
+                    digit_ptr = &IOutDigits[3];
+                    screen = EDIT_SET;
+                } 
+                else
+                {
+                    digit_ptr = &ILimDigits[3];
+                    screen = EDIT_LIM;
+                }
                 sysDir = CURRENT;
                 SayHelloCommand();
                 Write(CMD_CURSOR_ON);
                 CloseLCD();
                 RestoreCursor(digit);
             }
-            else if (screen == LIM_HOME)
-            {
-                screen = EDIT_LIM;
-                sysDir = CURRENT;
-                digit = 3;
-                SayHelloCommand();
-                Write(CMD_CURSOR_ON);
-                CloseLCD();
-                RestoreCursor(digit);
-            }
-            else if ((screen == EDIT_SET) && (sysDir == CURRENT))
-            {
-                screen = HOME;
-                SayHelloCommand();
-                Write(CMD_CURSOR_OFF);
-                CloseLCD();
-            }
-            else if ((screen == EDIT_LIM) && (sysDir == CURRENT))
-            {
-                screen = LIM_HOME;
-                SayHelloCommand();
-                Write(CMD_CURSOR_OFF);
-                CloseLCD();
-            }
-            else if ((screen == EDIT_SET) && (sysDir == VOLTAGE))
-            {
-                VOutDigits[digit]++;
-                if (VOutDigits[digit] > 9)
-                    VOutDigits[digit] = 0;
-                Vout = VOutDigits[3] * 1000 + VOutDigits[2] * 100 + VOutDigits[1] * 10 + VOutDigits[0];
-                HomeScreenUI();
-                RestoreCursor(digit);
-            }
-            else if ((screen == EDIT_LIM) && (sysDir == VOLTAGE))
-            {
-                VLimDigits[digit]++;
-                if (VLimDigits[digit] > 9)
-                    VLimDigits[digit] = 0;
-                Vlim = VLimDigits[3] * 1000 + VLimDigits[2] * 100 + VLimDigits[1] * 10 + VLimDigits[0];
-                HomeScreenUI();
-                RestoreCursor(digit);
-            }
-            //HomeScreenUI(screen, 0);
-        }
-        else if (button == 5)
-        {
-            if ((screen == HOME))
+            else if (button == BUTTON_C)
             {
                 screen = PARM_HOME;
                 ParmMode();
-                HomeScreenUI();
             }
-            else if (screen == LIM_HOME)
+            else if (button == BUTTON_D)
             {
-                screen = PARM_HOME;
-                ParmMode();
-                HomeScreenUI();
-                button = 0;
-                IOCCF = 0x0;
+                //Unused
             }
-            else if ((screen == EDIT_SET) || (screen == EDIT_LIM))
-            {
-                digit--;
-                if (digit < 0)
-                    digit = 0;
-                RestoreCursor(digit);
-            }
-            
         }
-        else if (button == 4)
+        else if ((screen == EDIT_SET) || (screen == EDIT_LIM))
         {
-            if (screen == HOME)
+            if (sysDir == VOLTAGE)
             {
-                screen = OUTPUT;
-                OutputMode();
-                HomeScreenUI();
+                if (button == BUTTON_A)
+                {
+                    if (screen == EDIT_SET)
+                        screen = HOME;
+                    else
+                        screen = LIM_HOME;
+                    SayHelloCommand();
+                    Write(CMD_CURSOR_OFF);
+                    CloseLCD();
+                }
             }
-            else
+            else if (sysDir == CURRENT)
             {
-                digit++;
-                if (digit >= 4)
-                    digit = 4;
-                RestoreCursor(digit);
+                if (button == BUTTON_B)
+                {
+                    if (screen == EDIT_SET)
+                        screen = HOME;
+                    else
+                        screen = LIM_HOME;
+                    SayHelloCommand();
+                    Write(CMD_CURSOR_OFF);
+                    CloseLCD();
+                }
+            }
+            switch (button)
+            {
+                case BUTTON_LEFT:
+                    if (digit != 3)
+                    {
+                        digit_ptr++;
+                        digit++;
+                        RestoreCursor(digit);
+                    }
+                    continue;
+                    break;
+                case BUTTON_RIGHT:
+                    if (digit != 0)
+                    {
+                        digit_ptr--;
+                        digit--;
+                        RestoreCursor(digit);
+                    }
+                    continue;
+                    break;
+                case BUTTON_UP:
+                    if (*digit_ptr != 9)
+                        *digit_ptr++;
+                    else
+                        *digit_ptr = 0;
+                    break;
+                case BUTTON_DOWN:
+                    if (*digit_ptr != 0)
+                        *digit_ptr--;
+                    else
+                        *digit_ptr = 9;
+                    break;
+                case FUNC:
+                    break;
             }
         }
+        HomeScreenUI();
         GotoSleep();
         //ButtonHit();
     }
@@ -342,26 +311,32 @@ void RestoreCursor(int digit)
 void interrupt low_priority ButtonHit()
 {
     CPUDOZEbits.IDLEN = 0b1; //Wake up!
-    button = 0;
-    if (IOCCFbits.IOCCF7 == 1)
+    button = NO_PRESS;
+    if (IOCCFbits.IOCCF7 == 1) //Key Press Detect
     {
         button = 7;
+        int value = 0;
+        if (IOCCFbits.IOCCF6)
+        {
+            value = 1;
+        }
+        value = value << 1;
+        if (IOCCFbits.IOCCF5)
+        {
+            value += 1;
+        }
+        value = value << 1;
+        button = (Button) value;
     }
-    else if (IOCCFbits.IOCCF6 == 1)
+    else if (IOCCFbits.IOCCF3)
     {
-        button = 6;
+        //Func.
+        button = FUNC;
     }
-    else if (IOCCFbits.IOCCF5 == 1)
+    else if (IOCCFbits.IOCCF2)
     {
-        button = 5;
-    }
-    else if (IOCCFbits.IOCCF4 == 1)
-    {
-        button = 4;
-    }
-    else
-    {
-        return;
+        //HV Enable
+        button = HV_ENABLE;
     }
 
     IOCCF = 0x0;
@@ -468,9 +443,8 @@ void RunAbout()
     
     if (screen != HOME)
     {
-        button = 0;
         GotoSleep();
-        button = 0;
+        button = NO_PRESS;
         return;
     }
     
@@ -560,12 +534,8 @@ void RunAbout()
         WriteAndClose();
     }
     
-    do
-    {
-        GotoSleep();
-        //ButtonHit();
-    } while (button == 0);
-    button = 0;
+    GotoSleep();
+    button = NO_PRESS;
 }
 
 void ModeSelect()
@@ -656,58 +626,53 @@ void ModeSelect()
     while ((screen == MODE))
     {
         GotoSleep();
-        //ButtonHit();
-        if (button > 3)
-            screen = PARM_HOME;
-        if (button == 7)
+        if (button == BUTTON_A)
         {
             sysMode = VOLTAGE_SOURCE;
         }
-        else if (button == 6)
+        else if (button == BUTTON_B)
         {
             sysMode = CURRENT_SOURCE;
         }
-        else if (button == 5)
+        else if (button == BUTTON_C)
         {
             sysMode = BREAKDOWN_TEST;
         }
     }
-    button = 0;
+    button = NO_PRESS;
     IOCCF = 0x0;
 }
 
 void ParmMode()
 {
     DrawParmUI();
-    button = 0;
+    button = NO_PRESS;
     while ((screen == PARM_HOME))
     {
         GotoSleep();
-        if (button == 7)
+        if (button == BUTTON_A)
         {
             screen = LIM_HOME;
-            button = 0;
         }
-        else if (button == 6)
+        else if (button == BUTTON_B)
         {
             screen = MODE;
             ModeSelect();
             screen = PARM_HOME;
             DrawParmUI();
-            button = 0;
             //return;
         }
-        else if (button == 5)
+        else if (button == BUTTON_C)
         {
             screen = HOME;
-            button = 0;
         }
-        else if (button == 4)
+        else if (button == BUTTON_D)
         {
-            button = 0;
+            button = NO_PRESS;
             RunAbout();
             DrawParmUI();
         }
+        button = NO_PRESS;
         //ButtonHit();
     }
 }
@@ -925,14 +890,9 @@ void HomeScreenUI()
 
 void OutputMode()
 {
-    button = 0;
     OutputModeUI();
-    while (button == 0)
-    {
-        GotoSleep();
-        //ButtonHit();
-    }
-    button = 0;
+    GotoSleep();
+    button = NO_PRESS;
     screen = HOME;
 }
 
