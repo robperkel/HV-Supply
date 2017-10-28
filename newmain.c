@@ -7,7 +7,7 @@
 #pragma config RSTOSC = HFINTOSC_1MHZ// Power-up default value for COSC bits (HFINTOSC with HFFRQ = 4 MHz and CDIV = 4:1)
 
 // CONFIG1H
-#pragma config CLKOUTEN = OFF   // Clock Out Enable bit (CLKOUT function is disabled)
+#pragma config CLKOUTEN = ON    // Clock Out Enable bit (CLKOUT function is enabled)
 #pragma config CSWEN = ON       // Clock Switch Enable bit (Writing to NOSC and NDIV is allowed)
 #pragma config FCMEN = ON       // Fail-Safe Clock Monitor Enable bit (Fail-Safe Clock Monitor enabled)
 
@@ -18,7 +18,7 @@
 #pragma config BOREN = SBORDIS  // Brown-out Reset Enable bits (Brown-out Reset enabled , SBOREN bit is ignored)
 
 // CONFIG2H
-#pragma config BORV = VBOR_2P45 // Brown Out Reset Voltage selection bits (Brown-out Reset Voltage (VBOR) set to 2.45V)
+#pragma config BORV = VBOR_285  // Brown Out Reset Voltage selection bits (Brown-out Reset Voltage (VBOR) set to 2.85V)
 #pragma config ZCD = OFF        // ZCD Disable bit (ZCD disabled. ZCD can be enabled by setting the ZCDSEN bit of ZCDCON)
 #pragma config PPS1WAY = ON     // PPSLOCK bit One-Way Set Enable bit (PPSLOCK bit can be cleared and set only once; PPS registers remain locked after one clear/set cycle)
 #pragma config STVREN = ON      // Stack Full/Underflow Reset Enable bit (Stack full/underflow will cause Reset)
@@ -120,8 +120,8 @@ void main(void) {
     PORTA = 0x0;
     PORTB = 0xFF;
     TRISB = 0x0;
-    TRISC = 0xF0;
-    ANSELC = 0x0F;
+    TRISC = 0xFE;
+    ANSELC = 0x01;
     PORTC = 0x0;
     
     INTCONbits.GIEH = 0b1; //Enable Interrupts (HIGH)
@@ -135,8 +135,8 @@ void main(void) {
     IPR0bits.IOCIP = 0b0; //Set IOC to Low Priority
     IPR0bits.INT0IP = 0b1; //Set INT0 to High Priority
 
-    
-    IOCCP = 0xF0; //Enable RC4-RC7 rising edge interrupts
+    IOCCN = 0x0;
+    IOCCP = 0xFE; //Enable RC4-RC7 rising edge interrupts
     
     //Move RB0 PPS to RB5 (DRDY))
     INT0PPSbits.INT0PPS2 = 0b1;
@@ -146,7 +146,7 @@ void main(void) {
     Vcurr = 0;
     Icurr = 0;
     
-    Version = 6; //Version of the Code (Used for Display)
+    Version = 7; //Version of the Code (Used for Display)
         
     int digit = 0;
     
@@ -173,6 +173,7 @@ void main(void) {
     HomeScreenUI();
     while (1 == 1)
     {
+        GotoSleep();
         if ((screen == HOME) || (screen == LIM_HOME))
         {
             if (button == BUTTON_A)
@@ -273,13 +274,13 @@ void main(void) {
                     break;
                 case BUTTON_UP:
                     if (*digit_ptr != 9)
-                        *digit_ptr++;
+                        (*digit_ptr)++;
                     else
                         *digit_ptr = 0;
                     break;
                 case BUTTON_DOWN:
                     if (*digit_ptr != 0)
-                        *digit_ptr--;
+                        (*digit_ptr)--;
                     else
                         *digit_ptr = 9;
                     break;
@@ -287,8 +288,33 @@ void main(void) {
                     break;
             }
         }
+        if (sysDir == VOLTAGE)
+        {
+            if (screen == EDIT_SET)
+            {
+                Vout = VOutDigits[3] * 1000 + VOutDigits[2] * 100 + VOutDigits[1] * 10 + VOutDigits[0];
+            }
+            else if (screen == EDIT_LIM)
+            {
+                Vlim = VLimDigits[3] * 1000 + VLimDigits[2] * 100 + VLimDigits[1] * 10 + VLimDigits[0];
+            }
+        }
+        else if (sysDir == CURRENT)
+        {
+            if (screen == EDIT_SET)
+            {
+                Iout = IOutDigits[3] * 1000 + IOutDigits[2] * 100 + IOutDigits[1] * 10 + IOutDigits[0];
+            }
+            else if (screen == EDIT_LIM)
+            {
+                Ilim = ILimDigits[3] * 1000 + ILimDigits[2] * 100 + ILimDigits[1] * 10 + ILimDigits[0];
+            }
+        }
         HomeScreenUI();
-        GotoSleep();
+        if ((screen == EDIT_SET) || (screen == EDIT_LIM))
+        {
+            RestoreCursor(digit);
+        }
         //ButtonHit();
     }
     return;
@@ -312,23 +338,27 @@ void interrupt low_priority ButtonHit()
 {
     CPUDOZEbits.IDLEN = 0b1; //Wake up!
     button = NO_PRESS;
-    if (IOCCFbits.IOCCF7 == 1) //Key Press Detect
+    if (PORTCbits.RC7 == 1) //Key Press Detect
     {
         button = 7;
         int value = 0;
-        if (IOCCFbits.IOCCF6)
+        if (PORTCbits.RC6)
         {
             value = 1;
         }
         value = value << 1;
-        if (IOCCFbits.IOCCF5)
+        if (PORTCbits.RC5)
         {
             value += 1;
         }
         value = value << 1;
+        if (PORTCbits.RC4)
+        {
+            value += 1;
+        }
         button = (Button) value;
     }
-    else if (IOCCFbits.IOCCF3)
+    else if (PORTCbits.RC3)
     {
         //Func.
         button = FUNC;
@@ -629,14 +659,17 @@ void ModeSelect()
         if (button == BUTTON_A)
         {
             sysMode = VOLTAGE_SOURCE;
+            screen = PARM_HOME;
         }
         else if (button == BUTTON_B)
         {
             sysMode = CURRENT_SOURCE;
+            screen = PARM_HOME;
         }
         else if (button == BUTTON_C)
         {
             sysMode = BREAKDOWN_TEST;
+            screen = PARM_HOME;
         }
     }
     button = NO_PRESS;
