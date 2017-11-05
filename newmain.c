@@ -7,7 +7,7 @@
 #pragma config RSTOSC = HFINTOSC_1MHZ// Power-up default value for COSC bits (HFINTOSC with HFFRQ = 4 MHz and CDIV = 4:1)
 
 // CONFIG1H
-#pragma config CLKOUTEN = ON    // Clock Out Enable bit (CLKOUT function is enabled)
+#pragma config CLKOUTEN = OFF    // Clock Out Enable bit (CLKOUT function is enabled)
 #pragma config CSWEN = ON       // Clock Switch Enable bit (Writing to NOSC and NDIV is allowed)
 #pragma config FCMEN = ON       // Fail-Safe Clock Monitor Enable bit (Fail-Safe Clock Monitor enabled)
 
@@ -18,7 +18,7 @@
 #pragma config BOREN = SBORDIS  // Brown-out Reset Enable bits (Brown-out Reset enabled , SBOREN bit is ignored)
 
 // CONFIG2H
-#pragma config BORV = VBOR_285  // Brown Out Reset Voltage selection bits (Brown-out Reset Voltage (VBOR) set to 2.85V)
+#pragma config BORV = VBOR_190  // Brown Out Reset Voltage selection bits (Brown-out Reset Voltage (VBOR) set to 2.85V)
 #pragma config ZCD = OFF        // ZCD Disable bit (ZCD disabled. ZCD can be enabled by setting the ZCDSEN bit of ZCDCON)
 #pragma config PPS1WAY = ON     // PPSLOCK bit One-Way Set Enable bit (PPSLOCK bit can be cleared and set only once; PPS registers remain locked after one clear/set cycle)
 #pragma config STVREN = ON      // Stack Full/Underflow Reset Enable bit (Stack full/underflow will cause Reset)
@@ -76,7 +76,7 @@ typedef enum{
 typedef enum{
     NO_PRESS = -1, BUTTON_A = 0, BUTTON_B, BUTTON_C, BUTTON_D, 
             BUTTON_LEFT, BUTTON_UP, BUTTON_DOWN, BUTTON_RIGHT,
-            FUNC, HV_ENABLE
+            EXIT, HV_ENABLE
 } Button;
 
 void WriteAndClose();
@@ -124,6 +124,16 @@ void main(void) {
     ANSELC = 0x01;
     PORTC = 0x0;
     
+    /*long wait = 0;
+    do
+    {
+        _delay(10);
+        asm("CLRWDT");
+        wait++;
+    } while (wait != 30000);*/
+    
+    int konami = 0; //Konami Code Counter
+    
     INTCONbits.GIEH = 0b1; //Enable Interrupts (HIGH)
     INTCONbits.GIEL = 0b1; //Enable Interrupts (LOW)
     INTCONbits.IPEN = 0b1; //Priority for Interrupts
@@ -146,8 +156,9 @@ void main(void) {
     Vcurr = 0;
     Icurr = 0;
     
-    Version = 7; //Version of the Code (Used for Display)
+    Version = 9; //Version of the Code (Used for Display)
         
+    int inCode = 0;
     int digit = 0;
     
     int VOutDigits[4] = {0,0,0,0};
@@ -173,10 +184,20 @@ void main(void) {
     HomeScreenUI();
     while (1 == 1)
     {
+        if (inCode == 0)
+        {
+            konami = 0;
+        }
+        inCode = 0;
+        if (konami == 10)
+        {
+            //TODO: Easter Egg!
+            konami = 0;
+        }
         GotoSleep();
         if ((screen == HOME) || (screen == LIM_HOME))
         {
-            if (button == BUTTON_A)
+            if ((button == BUTTON_A) && (konami != 9))
             {
                 digit = 3;
                 if (screen == HOME)
@@ -195,7 +216,7 @@ void main(void) {
                 CloseLCD();
                 RestoreCursor(digit);
             }
-            else if (button == BUTTON_B)
+            else if ((button == BUTTON_B) && (konami != 8))
             {
                 digit = 3;
                 if (screen == HOME)
@@ -218,39 +239,85 @@ void main(void) {
             {
                 screen = PARM_HOME;
                 ParmMode();
+                if (screen == OUTPUT)
+                {
+                    OutputMode();
+                }
             }
             else if (button == BUTTON_D)
             {
-                //Unused
+                continue;
+            }
+            else if (button == EXIT)
+            {
+                //Diagnostic Menu?
+                continue;
+            }
+            else if (button == HV_ENABLE)
+            {
+                screen = OUTPUT;
+                OutputMode();
+            }
+            else
+            {
+                inCode = 1;
+                switch (konami)
+                {
+                    case 0:
+                    case 1:
+                        if (button == BUTTON_UP) konami++;
+                        else konami = 0;
+                        break;
+                    case 2:
+                    case 3:
+                        if (button == BUTTON_DOWN) konami++;
+                        else konami = 0;
+                        break;
+                    case 4:
+                    case 6:
+                        if (button == BUTTON_LEFT) konami++;
+                        else konami = 0;
+                        break;
+                    case 5:
+                    case 7:
+                        if (button == BUTTON_RIGHT) konami++;
+                        else konami = 0;
+                        break;
+                    case 8:
+                        if (button == BUTTON_B) konami++;
+                        else konami = 0;
+                        break;
+                    case 9:
+                        if (button == BUTTON_A) konami++;
+                        else konami = 0;
+                        break;
+                }
+                continue;
             }
         }
         else if ((screen == EDIT_SET) || (screen == EDIT_LIM))
         {
-            if (sysDir == VOLTAGE)
+            if (button == EXIT)
             {
-                if (button == BUTTON_A)
+                SayHelloCommand();
+                Write(CMD_CURSOR_OFF);
+                CloseLCD();
+                if (screen == EDIT_SET)
                 {
-                    if (screen == EDIT_SET)
-                        screen = HOME;
-                    else
-                        screen = LIM_HOME;
-                    SayHelloCommand();
-                    Write(CMD_CURSOR_OFF);
-                    CloseLCD();
+                    screen = HOME;
+                }
+                else
+                {
+                    screen = LIM_HOME;
                 }
             }
-            else if (sysDir == CURRENT)
+            else if (button == HV_ENABLE)
             {
-                if (button == BUTTON_B)
-                {
-                    if (screen == EDIT_SET)
-                        screen = HOME;
-                    else
-                        screen = LIM_HOME;
-                    SayHelloCommand();
-                    Write(CMD_CURSOR_OFF);
-                    CloseLCD();
-                }
+                SayHelloCommand();
+                Write(CMD_CURSOR_OFF);
+                CloseLCD();
+                screen = OUTPUT;
+                OutputMode();
             }
             switch (button)
             {
@@ -263,6 +330,46 @@ void main(void) {
                     }
                     continue;
                     break;
+                case BUTTON_A:
+                {
+                    int target = 3;
+                    int dif = target - digit;
+                    digit += dif;
+                    digit_ptr += dif;
+                    RestoreCursor(digit);
+                    continue;
+                    break;
+                }
+                case BUTTON_B:
+                {
+                    int target = 2;
+                    int dif = target - digit;
+                    digit += dif;
+                    digit_ptr += dif;
+                    RestoreCursor(digit);
+                    continue;
+                    break;
+                }
+                case BUTTON_C:
+                {
+                    int target = 1;
+                    int dif = target - digit;
+                    digit += dif;
+                    digit_ptr += dif;
+                    RestoreCursor(digit);
+                    continue;
+                    break;
+                }
+                case BUTTON_D:
+                {
+                    int target = 0;
+                    int dif = target - digit;
+                    digit += dif;
+                    digit_ptr += dif;
+                    RestoreCursor(digit);
+                    continue;
+                    break;
+                }
                 case BUTTON_RIGHT:
                     if (digit != 0)
                     {
@@ -284,7 +391,7 @@ void main(void) {
                     else
                         *digit_ptr = 9;
                     break;
-                case FUNC:
+                case EXIT:
                     break;
             }
         }
@@ -292,11 +399,28 @@ void main(void) {
         {
             if (screen == EDIT_SET)
             {
+                
                 Vout = VOutDigits[3] * 1000 + VOutDigits[2] * 100 + VOutDigits[1] * 10 + VOutDigits[0];
+                if (Vout > 2500)
+                {
+                    VOutDigits[3] = 2;
+                    VOutDigits[2] = 5;
+                    VOutDigits[1] = 0;
+                    VOutDigits[0] = 0;
+                    Vout = 2500;
+                }
             }
             else if (screen == EDIT_LIM)
             {
                 Vlim = VLimDigits[3] * 1000 + VLimDigits[2] * 100 + VLimDigits[1] * 10 + VLimDigits[0];
+                if (Vlim > 2500)
+                {
+                    VLimDigits[3] = 2;
+                    VLimDigits[2] = 5;
+                    VLimDigits[1] = 0;
+                    VLimDigits[0] = 0;
+                    Vlim = 2500;
+                }
             }
         }
         else if (sysDir == CURRENT)
@@ -304,10 +428,26 @@ void main(void) {
             if (screen == EDIT_SET)
             {
                 Iout = IOutDigits[3] * 1000 + IOutDigits[2] * 100 + IOutDigits[1] * 10 + IOutDigits[0];
+                if (Iout > 2000)
+                {
+                    IOutDigits[3] = 2;
+                    IOutDigits[2] = 0;
+                    IOutDigits[1] = 0;
+                    IOutDigits[0] = 0;
+                    Iout = 2000;
+                }
             }
             else if (screen == EDIT_LIM)
             {
                 Ilim = ILimDigits[3] * 1000 + ILimDigits[2] * 100 + ILimDigits[1] * 10 + ILimDigits[0];
+                if (Ilim > 2000)
+                {
+                    ILimDigits[3] = 2;
+                    ILimDigits[2] = 0;
+                    ILimDigits[1] = 0;
+                    ILimDigits[0] = 0;
+                    Ilim = 2000;
+                }
             }
         }
         HomeScreenUI();
@@ -360,8 +500,8 @@ void interrupt low_priority ButtonHit()
     }
     else if (PORTCbits.RC3)
     {
-        //Func.
-        button = FUNC;
+        //EXIT.
+        button = EXIT;
     }
     else if (IOCCFbits.IOCCF2)
     {
@@ -671,9 +811,16 @@ void ModeSelect()
             sysMode = BREAKDOWN_TEST;
             screen = PARM_HOME;
         }
+        else if (button == EXIT)
+        {
+            screen = PARM_HOME;
+        }
+        else if (button == HV_ENABLE)
+        {
+            screen = OUTPUT;
+        }
     }
     button = NO_PRESS;
-    IOCCF = 0x0;
 }
 
 void ParmMode()
@@ -691,8 +838,12 @@ void ParmMode()
         {
             screen = MODE;
             ModeSelect();
-            screen = PARM_HOME;
-            DrawParmUI();
+            if (screen != OUTPUT)
+            {
+                screen = PARM_HOME;
+                DrawParmUI();
+            }
+            
             //return;
         }
         else if (button == BUTTON_C)
@@ -704,6 +855,10 @@ void ParmMode()
             button = NO_PRESS;
             RunAbout();
             DrawParmUI();
+        }
+        else if (button == HV_ENABLE)
+        {
+            screen = OUTPUT;
         }
         button = NO_PRESS;
         //ButtonHit();
@@ -924,7 +1079,11 @@ void HomeScreenUI()
 void OutputMode()
 {
     OutputModeUI();
-    GotoSleep();
+    button = NO_PRESS;
+    do
+    {
+        GotoSleep();
+    } while (button != HV_ENABLE);
     button = NO_PRESS;
     screen = HOME;
 }
