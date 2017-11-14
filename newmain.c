@@ -93,10 +93,83 @@ void RunAbout(); //Info / Welcome Screen
 void ModeSelect(); //Select a Mode
 void DrawLimitUI();
 
+void DiagAndConfig();
+
 void GotoSleep()
 {
     CPUDOZEbits.IDLEN = 0;
     asm("SLEEP");
+}
+
+Screen screen = HOME;
+Modification sysDir = VOLTAGE;
+SystemMode sysMode = VOLTAGE_SOURCE;
+
+
+void LoadSettingsFromMemory()
+{
+     /*
+            * Read Order:
+            * Mode (0x0)
+            * VSet
+            * ISet
+            * VLim
+            * ILim
+        */
+        unsigned char address = 0x0;
+        NVMDAT = 0x0;
+        for (int i = 0; i < 9; ++i)
+        {
+            NVMADRL = address;
+            NVMCON1bits.RD = 0b1;
+            switch (i)
+            {
+                case 0:
+                    sysMode = NVMDAT;
+                    if (sysMode == 0xFF)
+                    {
+                        sysMode = 0x0;
+                        //TODO: Init Mem / First Time Startup
+                        return;
+                    }
+                    break;
+                case 1:
+                    Vout = NVMDAT;
+                    Vout = Vout << 4;
+                    break;
+                case 2:
+                    Vout += NVMDAT;
+                    break;
+                case 3:
+                    Iout = NVMDAT;
+                    Iout = Iout << 4;
+                    break;
+                case 4:
+                    Iout += NVMDAT;
+                    break;
+                case 5:
+                    Vlim = NVMDAT;
+                    Vlim = Vlim << 4;
+                    break;
+                case 6:
+                    Vlim += NVMDAT;
+                    break;
+                case 7:
+                    Ilim = NVMDAT;
+                    Ilim = Ilim << 4;
+                    break;
+                case 8:
+                    Ilim += NVMDAT;
+                    break; 
+            }
+            NVMDAT = 0x0;
+            address++;
+        }
+}
+
+void WriteSettingsToMemory()
+{
+    
 }
 
 void DrawLine(const char* text, double* val, uchar prefix, char unit);
@@ -105,13 +178,12 @@ void RestoreCursor(int digit);
 void interrupt low_priority ButtonHit();
 Button button = NO_PRESS;
 
-Screen screen = HOME;
-Modification sysDir = VOLTAGE;
-SystemMode sysMode = VOLTAGE_SOURCE;
-
 static int Version;
 unsigned long Vcurr;
 unsigned long Icurr;
+
+unsigned long Vstop;
+unsigned long Istop;
 
 void main(void) {    
     //Fosc = 4MHz, 1MHz Output, 1uS Cycle   
@@ -156,7 +228,10 @@ void main(void) {
     Vcurr = 0;
     Icurr = 0;
     
-    Version = 9; //Version of the Code (Used for Display)
+    Version = 1; //Version of the Code (Used for Display)
+    
+    Vstop = 2500; //2.5kV
+    Istop = 2000; //20mA
         
     int inCode = 0;
     int digit = 0;
@@ -166,6 +241,9 @@ void main(void) {
     
     int VLimDigits[4] = {0,0,0,0};
     int ILimDigits[4] = {0,0,0,0};
+    
+    int VStopDigits[4] = {0,0,0,0};
+    int IStopDigits[4] = {0,0,0,0};
     
     int* digit_ptr = 0;
     
@@ -181,6 +259,61 @@ void main(void) {
     screen = HOME;
     sysMode = VOLTAGE_SOURCE;
     RunAbout();
+    
+    int temp = 0;
+    //Decode Loaded Memory Values
+    for (int i = 0; i < 6; ++i)
+    {
+        switch (i)
+        {
+            case 0:
+                digit_ptr = &VOutDigits[3];
+                temp = Vout;
+                break;
+            case 1:
+                digit_ptr = &IOutDigits[3];
+                temp = Iout;
+                break;
+            case 2:
+                digit_ptr = &VLimDigits[3];
+                temp = Vlim;
+                break;
+            case 3:
+                digit_ptr = &ILimDigits[3];
+                temp = Ilim;
+                break;
+            case 4:
+                digit_ptr = &VStopDigits[3];
+                temp = Vstop;
+                break;
+            case 5:
+                digit_ptr = &IStopDigits[3];
+                temp = Istop;
+                break;
+        }
+        while (temp >= 1000)
+        {
+            (*digit_ptr)++;
+            temp -= 1000;
+        }
+        digit_ptr--;
+        while (temp >= 100)
+        {
+            (*digit_ptr)++;
+            temp -= 100;
+        }
+        digit_ptr--;
+        while (temp >= 10)
+        {
+            (*digit_ptr)++;
+            temp -= 10;
+        }
+        digit_ptr--;
+        VOutDigits[0] = temp;
+    }
+    
+    digit_ptr = 0x0;
+    
     HomeScreenUI();
     while (1 == 1)
     {
@@ -251,6 +384,73 @@ void main(void) {
             else if (button == EXIT)
             {
                 //Diagnostic Menu?
+                
+                //TEMP: Save Settings to EEPROM
+                {
+                    /*
+                     * Write Order:
+                     * Mode
+                     * VSet
+                     * ISet
+                     * VLim
+                     * ILim
+                     */
+                    unsigned char address = 0x0;
+                    unsigned char dataToWrite = sysMode;
+                    NVMCON1 = 0x0;
+                    NVMCON1bits.WREN = 0b1;
+                    INTCONbits.GIE = 0b0;
+                    for (int i = 0; i < 9; ++i)
+                    {
+                        switch (i)
+                        {
+                            case 0:
+                                dataToWrite = sysMode;
+                                break;
+                            case 1:
+                                dataToWrite = (Vout & 0xF00) >> 4;
+                                break;
+                            case 2:
+                                dataToWrite = Vout & 0xFF;
+                                break;
+                            case 3:
+                                dataToWrite = (Iout & 0xF00) >> 4;
+                                break;
+                            case 4:
+                                dataToWrite = Iout & 0xFF;
+                                break;
+                            case 5:
+                                dataToWrite = (Vlim & 0xF00) >> 4;
+                                break;
+                            case 6:
+                                dataToWrite = Vlim & 0xFF;
+                                break;
+                            case 7:
+                                dataToWrite = (Ilim & 0xF00) >> 4;
+                                break;
+                            case 8:
+                                dataToWrite = Ilim & 0xFF;
+                                break;
+                            default:
+                                dataToWrite = 0x0;
+                        }
+                        NVMADRL = address;
+                        NVMDAT = dataToWrite;
+                        //Unlock Sequence: Write 55h, AAh to NVMCON2; then WR = 1
+                        NVMCON2 = 0x55;
+                        NVMCON2 = 0xAA;
+                        NVMCON1bits.WR = 0b1;
+                        PIR7bits.NVMIF = 0b0;
+                        while (PIR7bits.NVMIF == 0b0)
+                        {
+                            asm("CLRWDT"); //Clear the WDT
+                        }
+                        PIR7bits.NVMIF = 0b0;
+                        address++;
+                    }
+                    INTCONbits.GIE = 0b1;
+                    NVMCON1bits.WREN = 0b0;
+                }
                 continue;
             }
             else if (button == HV_ENABLE)
@@ -401,25 +601,25 @@ void main(void) {
             {
                 
                 Vout = VOutDigits[3] * 1000 + VOutDigits[2] * 100 + VOutDigits[1] * 10 + VOutDigits[0];
-                if (Vout > 2500)
+                if (Vout > Vstop)
                 {
-                    VOutDigits[3] = 2;
-                    VOutDigits[2] = 5;
-                    VOutDigits[1] = 0;
-                    VOutDigits[0] = 0;
-                    Vout = 2500;
+                    VOutDigits[3] = VStopDigits[3];
+                    VOutDigits[2] = VStopDigits[2];
+                    VOutDigits[1] = VStopDigits[1];
+                    VOutDigits[0] = VStopDigits[0];
+                    Vout = Vstop;
                 }
             }
             else if (screen == EDIT_LIM)
             {
                 Vlim = VLimDigits[3] * 1000 + VLimDigits[2] * 100 + VLimDigits[1] * 10 + VLimDigits[0];
-                if (Vlim > 2500)
+                if (Vlim > Vstop)
                 {
-                    VLimDigits[3] = 2;
-                    VLimDigits[2] = 5;
-                    VLimDigits[1] = 0;
-                    VLimDigits[0] = 0;
-                    Vlim = 2500;
+                    VLimDigits[3] = VStopDigits[3];
+                    VLimDigits[2] = VStopDigits[2];
+                    VLimDigits[1] = VStopDigits[1];
+                    VLimDigits[0] = VStopDigits[0];
+                    Vlim = Vstop;
                 }
             }
         }
@@ -428,25 +628,25 @@ void main(void) {
             if (screen == EDIT_SET)
             {
                 Iout = IOutDigits[3] * 1000 + IOutDigits[2] * 100 + IOutDigits[1] * 10 + IOutDigits[0];
-                if (Iout > 2000)
+                if (Iout > Istop)
                 {
-                    IOutDigits[3] = 2;
-                    IOutDigits[2] = 0;
-                    IOutDigits[1] = 0;
-                    IOutDigits[0] = 0;
-                    Iout = 2000;
+                    IOutDigits[3] = IStopDigits[3];
+                    IOutDigits[2] = IStopDigits[2];
+                    IOutDigits[1] = IStopDigits[1];
+                    IOutDigits[0] = IStopDigits[0];
+                    Iout = Istop;
                 }
             }
             else if (screen == EDIT_LIM)
             {
                 Ilim = ILimDigits[3] * 1000 + ILimDigits[2] * 100 + ILimDigits[1] * 10 + ILimDigits[0];
-                if (Ilim > 2000)
+                if (Ilim > Istop)
                 {
-                    ILimDigits[3] = 2;
-                    ILimDigits[2] = 0;
-                    ILimDigits[1] = 0;
-                    ILimDigits[0] = 0;
-                    Ilim = 2000;
+                    ILimDigits[3] = IStopDigits[3];
+                    ILimDigits[2] = IStopDigits[2];
+                    ILimDigits[1] = IStopDigits[1];
+                    ILimDigits[0] = IStopDigits[0];
+                    Ilim = Istop;
                 }
             }
         }
@@ -554,7 +754,7 @@ void RunAbout()
             OutputBuffer[14] = 0x79;
             //OutputBuffer[9] = BLANK;
             OutputBuffer[16] = 0x76;
-            OutputBuffer[17] = NumbersBase;
+            OutputBuffer[17] = NumbersBase + 1;
             OutputBuffer[18] = PERIOD;
             OutputBuffer[19] = NumbersBase + Version;
         }
@@ -618,11 +818,13 @@ void RunAbout()
         return;
     }
     
-    for (long i = 0; i < 10000; ++i)
+    LoadSettingsFromMemory();
+    
+    /*for (long i = 0; i < 10000; ++i)
     {
         _delay(25);
         asm("CLRWDT");
-    }
+    }*/
     
     IOCCF = 0x0;
     SayHelloCommand();
@@ -654,7 +856,7 @@ void RunAbout()
             OutputBuffer[14] = 0x79;
             //OutputBuffer[9] = BLANK;
             OutputBuffer[16] = 0x76;
-            OutputBuffer[17] = NumbersBase;
+            OutputBuffer[17] = NumbersBase + 1;
             OutputBuffer[18] = PERIOD;
             OutputBuffer[19] = NumbersBase + Version;
         }
@@ -1227,6 +1429,12 @@ void OutputModeUI()
 
         WriteAndClose();
     }
+}
+
+void DiagAndConfig()
+{
+    button = NO_PRESS;
+    
 }
 
 void WriteAndClose()
