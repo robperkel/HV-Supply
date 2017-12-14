@@ -110,6 +110,7 @@ void WriteSettingsToMemory();
 
 void RestoreCursor(int digit);
 void interrupt low_priority ButtonHit();
+
 Button button = NO_PRESS;
 
 static int Version;
@@ -130,6 +131,8 @@ void main(void) {
     ANSELC = 0x03; //0b0000 0b0011
     PORTC = 0x0;
     
+    T0CON0 = 0b10000100; //Turn on the timer, 8-bit mode, 1:8 divider
+    T0CON1 = 0b01010000; //Use Fosc/4, Async, Scale 1:1
     /*long wait = 0;
     do
     {
@@ -147,10 +150,12 @@ void main(void) {
     
     PIE0bits.IOCIE = 0b1; //Enable interrupt-on-change
     PIE0bits.INT0IE = 0b1; //Enable INT0 Interrupt
+    PIE0bits.TMR0IE = 0b1; //Enable Timer0 Interrupts
     
     IPR0bits.IOCIP = 0b0; //Set IOC to Low Priority
-    IPR0bits.INT0IP = 0b1; //Set INT0 to High Priority
-
+    IPR0bits.INT0IP = 0b0; //Set INT0 to Low Priority
+    IPR0bits.TMR0IP = 0b1; //Set TMR0 to High Priority
+    
     IOCCN = 0x0;
     IOCCP = 0xFE; //Enable RC4-RC7 rising edge interrupts
     

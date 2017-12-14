@@ -11,7 +11,9 @@
 
 #include <xc.h> // include processor files - each processor file is guarded.  
 #include <pic18f25k40.h>
+
 #include "./lookupTable.h"
+#include "./Utility.h"
 
 //Found Syntax Help from pic18f25k40.h
 
@@ -94,7 +96,7 @@ extern "C" {
         PORTBbits.RB2 = 0;
         PORTBbits.RB0 = 0;
         //Assert CS
-        PORTA = 0b10100000; //Position 6
+        setSPIchannel(6);
         state = DATA_WRITE;
         //0b11111010;
         out = 0b1;
@@ -116,7 +118,7 @@ extern "C" {
         PORTBbits.RB2 = 0;
         PORTBbits.RB0 = 0;
         //Chip Select LOW (60ns Setup, 20ns HOLD)
-        PORTA = 0b10100000;
+        setSPIchannel(6);
         state = COMMAND;
         //0b11111000
         out = 0b1;
@@ -134,7 +136,7 @@ extern "C" {
     inline void CloseLCD()
     {
         //Deassert CS
-        PORTA = 0xE0;
+        revertSPIchannel();
         PORTBbits.RB0 = 0;
         PORTBbits.RB2 = 0;
         state = NOT_READY;
