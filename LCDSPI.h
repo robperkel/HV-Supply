@@ -58,11 +58,15 @@ extern "C" {
         uchar setup_re = 0x2A; //Command: Function Set. Base: 0x2, with parms number of line-display (1), Double Height Font (0), RE-set (1), IS-set (0))
         uchar setup_font = 0x09; //Command: Extended Function Set, RE = 1. Base: 0b00001, with parms font-width (0), cursor invert (0), 2 or 4 line mode. (1)
         uchar rev = 0x06; //Command: Entry Mode Set. Fix Reversed Characters, RE = 1. Base: 0b000001, BDC (1), BGC (0))
-        uchar disable_re = 0b00101001;
+        uchar disable_re = 0b00101000; //Command: Function Set.
         uchar goHome = 0x02; //Move the cursor to 0h0. Doesn't affect RAM
         
+        
+        //CloseLCD();
+        SayHelloWrite(); //IDK why this works...
         SayHelloCommand(); //Open Command Mode
         
+      //  Write(0x0); //Turn off the display
         //Clear any RAM
         Write(CMD_CLEAR);
         Write(CMD_CURSOR_OFF);
@@ -72,11 +76,11 @@ extern "C" {
         Write(on);
         //Enable RE for Font and Line Setup
         Write(setup_re);
+        //Set BDC, BGC
+        Write(rev);
         //Setup Font and Line
         //0b 0000 1011
         Write(setup_font);
-        //Set BDC, BGC
-        Write(rev);
         //Disable RE
         //0b 0010 1000
         Write(disable_re);
@@ -90,7 +94,7 @@ extern "C" {
         PORTBbits.RB2 = 0;
         PORTBbits.RB0 = 0;
         //Assert CS
-        PORTBbits.RB1 = 0;
+        PORTA = 0b10100000; //Position 6
         state = DATA_WRITE;
         //0b11111010;
         out = 0b1;
@@ -112,7 +116,7 @@ extern "C" {
         PORTBbits.RB2 = 0;
         PORTBbits.RB0 = 0;
         //Chip Select LOW (60ns Setup, 20ns HOLD)
-        PORTBbits.RB1 = 0;
+        PORTA = 0b10100000;
         state = COMMAND;
         //0b11111000
         out = 0b1;
@@ -130,7 +134,7 @@ extern "C" {
     inline void CloseLCD()
     {
         //Deassert CS
-        PORTBbits.RB1 = 1;
+        PORTA = 0xE0;
         PORTBbits.RB0 = 0;
         PORTBbits.RB2 = 0;
         state = NOT_READY;

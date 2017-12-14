@@ -18,8 +18,19 @@ extern "C" {
     
     static unsigned long Vout = 0;
     static unsigned long Iout = 0;
-    static unsigned long Vlim = 0;
+    static unsigned long Vlim = 0;    
+    
+    static int VOutDigits[4] = {0,0,0,0};
+    static int IOutDigits[4] = {0,0,0,0};
+    
+    static int VLimDigits[4] = {0,0,0,0};
+    static int ILimDigits[4] = {0,0,0,0};
+    
+    static int VStopDigits[4] = {0,0,0,0};
+    static int IStopDigits[4] = {0,0,0,0};
     static unsigned long Ilim = 0;
+    
+    
     
     uint _GetNumberDigit(unsigned long in, unsigned long fact)
     {
