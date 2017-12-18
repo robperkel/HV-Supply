@@ -146,9 +146,9 @@ extern "C" {
     {   //Serial Setup time = 200nS; Serial Hold time = TBA (assume 200ns);
         PORTBbits.RB2 = out;
         PORTBbits.RB0 = 1; //Clock On
-        _delay(4); //Note: Originally 8
+        _delay(6); //Note: Originally 8
         PORTBbits.RB0 = 0; //Clock Off
-        _delay(4);
+        _delay(6);
     }
     
     void WriteLine()

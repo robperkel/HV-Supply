@@ -39,7 +39,7 @@ extern "C" {
     
     inline void revertSPIchannel()
     {
-        PORTA = 0x00;
+        PORTA = 0xE0;
     }
     
     void interrupt high_priority WDT_Timer()

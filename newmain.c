@@ -167,7 +167,7 @@ void main(void) {
     Vcurr = 0;
     Icurr = 0;
     
-    Version = 1; //Version of the Code (Used for Display)
+    Version = 2; //Version of the Code (Used for Display)
     
     Vstop = 2500; //2.5kV
     Istop = 2000; //20mA
