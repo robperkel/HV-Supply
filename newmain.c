@@ -137,6 +137,10 @@ void main(void) {
     
     T0CON0 = 0b10000100; //Turn on the timer, 8-bit mode, 1:8 divider
     T0CON1 = 0b01010000; //Use Fosc/4, Async, Scale 1:1
+    
+    T2CON = 0b00001111; //Timer2 Off, 1:1 Prescaler, 1:16 Divider
+    T2HLT = 0b10101000; //Sync to Oscillator, Rising Edge Trigger, Sync to ON, One-Shop Software Mode
+    T2CLKCON = 0b00000101; //Runs on the 31kHz Oscillator
     /*long wait = 0;
     do
     {
@@ -158,9 +162,13 @@ void main(void) {
     PIE0bits.INT0IE = 0b1; //Enable INT0 Interrupt
     PIE0bits.TMR0IE = 0b1; //Enable Timer0 Interrupts
     
+    PIE4bits.TMR2IE = 0b1; //Enable Timer2 Interrupts
+    
     IPR0bits.IOCIP = 0b0; //Set IOC to Low Priority
     IPR0bits.INT0IP = 0b0; //Set INT0 to Low Priority
     IPR0bits.TMR0IP = 0b1; //Set TMR0 to High Priority
+    
+    IPR4bits.TMR2IP = 0b0; //Low Priority Timer2 Interrupt
     
     IOCCN = 0x0;
     IOCCP = 0xFE; //Enable RC4-RC7 rising edge interrupts
@@ -646,11 +654,24 @@ void RunAbout()
     
     LoadSettingsFromMemory();
     
-    for (long i = 0; i < 10000; ++i)
+    //31kHz Clock Source. Divider: 1:16
+    T2PR = 0xFF;
+    
+    //~7.598 ms  per Overflow
+    //759.8ms delay
+    
+    //TODO: Why is the interrupt being cleared (or not existing?)
+    for (int i = 0; i < 100; ++i)
     {
-        _delay(25);
-        asm("CLRWDT");
+        T2TMR = 0x00; //Clear the Timer
+        T2CONbits.ON = 0b0; //Turn it off, then...
+        T2CONbits.ON = 0b1; //Turn Timer 2 On
+        PIR4bits.TMR2IF = 0b0; //Clear the Interrupt
+        do{
+            asm("SLEEP");
+        } while((PIR4bits.TMR2IF == 0b0) && (T2CONbits.ON == 0b0));
     }
+   
     
     IOCCF = 0x0;
     SayHelloCommand();
