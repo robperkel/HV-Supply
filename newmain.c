@@ -27,7 +27,7 @@
 
 // CONFIG3L
 #pragma config WDTCPS = WDTCPS_31// WDT Period Select bits (Divider ratio 1:65536; software control of WDTPS)
-#pragma config WDTE = NSLEEP    // WDT operating mode (WDT enabled while sleep=0, suspended when sleep=1)
+#pragma config WDTE = OFF    // WDT Disabled
 
 // CONFIG3H
 #pragma config WDTCWS = WDTCWS_7// WDT Window Select bits (window always open (100%); software control; keyed access not required)
@@ -95,15 +95,20 @@ void DrawLimitUI();
 
 void DiagAndConfig();
 
-void GotoSleep()
-{
-    CPUDOZEbits.IDLEN = 0;
-    asm("SLEEP");
-}
-
+Button button = NO_PRESS;
 Screen screen = HOME;
 Modification sysDir = VOLTAGE;
 SystemMode sysMode = VOLTAGE_SOURCE;
+
+
+void GotoSleep()
+{ //Note: Actually "Idles" the CPU. The [WDT] will still be active.
+    button = NO_PRESS;
+    do
+    {
+        asm("SLEEP");
+    } while(button == NO_PRESS);
+}
 
 void LoadSettingsFromMemory();
 void WriteSettingsToMemory();
@@ -111,7 +116,6 @@ void WriteSettingsToMemory();
 void RestoreCursor(int digit);
 void interrupt low_priority ButtonHit();
 
-Button button = NO_PRESS;
 
 static int Version;
 unsigned long Vcurr;
@@ -142,6 +146,8 @@ void main(void) {
     } while (wait != 30000);*/
     
     int konami = 0; //Konami Code Counter
+    
+    CPUDOZEbits.IDLEN = 1; //Allow the CPU to enter into IDLE for SLEEP instructions (not Sleep)
     
     INTCONbits.GIEH = 0b1; //Enable Interrupts (HIGH)
     INTCONbits.GIEL = 0b1; //Enable Interrupts (LOW)
@@ -497,7 +503,6 @@ void RestoreCursor(int digit)
 
 void interrupt low_priority ButtonHit()
 {
-    CPUDOZEbits.IDLEN = 0b1; //Wake up!
     button = NO_PRESS;
     if (PORTCbits.RC7 == 1) //Key Press Detect
     {
@@ -536,7 +541,7 @@ void interrupt low_priority ButtonHit()
     do
     {
         IOCCF = 0x0;
-        _delay(25);
+        _delay(50);
         asm("CLRWDT");
     } while ((IOCCF != 0x0) || (PORTC != 0x0));
     IOCCF = 0x0;
@@ -1293,8 +1298,8 @@ void DiagAndConfig()
 {
     button = NO_PRESS;
     SayHelloCommand();
-    Write(CMD_GOHOME);
     Write(CMD_CLEAR);
+    Write(CMD_GOHOME);
     CloseLCD();
         
     for (int lines = 0; lines < 4; ++lines)
