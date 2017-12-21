@@ -225,7 +225,7 @@ void main(void) {
         GotoSleep();
         if ((screen == HOME) || (screen == LIM_HOME))
         {
-            if ((button == BUTTON_A) && (konami != 9) && ((screen == HOME) || ((screen == LIM_HOME) && (sysMode == CURRENT_SOURCE))))
+            if ((button == BUTTON_A) && (konami != 9) && (((screen == HOME) && (sysMode != CURRENT_SOURCE)) || ((screen == LIM_HOME) && (sysMode == CURRENT_SOURCE))))
             {
                 digit = 3;
                 if (screen == HOME)
@@ -244,7 +244,7 @@ void main(void) {
                 CloseLCD();
                 RestoreCursor(digit);
             }
-            else if ((button == BUTTON_B) && (konami != 8) && (((screen == HOME) && (sysMode != BREAKDOWN_TEST)) || ((screen == LIM_HOME) && (sysMode != CURRENT_SOURCE))))
+            else if ((button == BUTTON_B) && (konami != 8) && (((screen == HOME) && (sysMode == CURRENT_SOURCE)) || ((screen == LIM_HOME) && (sysMode != CURRENT_SOURCE))))
             {
                 digit = 3;
                 if (screen == HOME)
@@ -1105,7 +1105,7 @@ void HomeScreenUI()
                     OutputBuffer[7] = 0x6D;
                 }
                 //OutputBuffer[8] = BLANK;
-                if ((lines == 2) && (sysMode == BREAKDOWN_TEST) && ((screen == HOME) || (screen == EDIT_SET)) )
+                if ((((lines == 1) && (sysMode == CURRENT_SOURCE)) || (lines == 2) && (sysMode != CURRENT_SOURCE)) && ((screen == HOME) || (screen == EDIT_SET)))
                 {
                     //-NA-
                     OutputBuffer[9] = 0x2D;
@@ -1288,17 +1288,25 @@ void OutputMode()
             OutputBuffer[3] = 0x6D;
             OutputBuffer[4] = COLON;
             
-            if (sysMode == CURRENT_SOURCE)
+            if ((sysMode == CURRENT_SOURCE) && (Vlim != 0000))
             {
                 offset = writeLargeNumber(0, 6, Vlim);
                 OutputBuffer[offset] = 0x56; //V
             }
-            else
+            else if ((sysMode != CURRENT_SOURCE) && (Ilim != 0000))
             {
                 offset = writeLargeNumber(0, 6, Ilim);
                 OutputBuffer[offset] = NumbersBase;
                 OutputBuffer[offset + 1] = 0x75; //u
                 OutputBuffer[offset + 2] = 0x41; //A
+            }
+            else
+            {
+                //-NA-
+                OutputBuffer[6] = 0x2D;
+                OutputBuffer[7] = 0x4E;
+                OutputBuffer[8] = 0x41;
+                OutputBuffer[9] = 0x2D;
             }
         }
         else if (lines == 3)
