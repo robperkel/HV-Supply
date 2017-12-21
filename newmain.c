@@ -244,7 +244,7 @@ void main(void) {
                 CloseLCD();
                 RestoreCursor(digit);
             }
-            else if ((button == BUTTON_B) && (konami != 8) && ((screen == HOME) || ((screen == LIM_HOME) && (sysMode != CURRENT_SOURCE))))
+            else if ((button == BUTTON_B) && (konami != 8) && (((screen == HOME) && (sysMode != BREAKDOWN_TEST)) || ((screen == LIM_HOME) && (sysMode != CURRENT_SOURCE))))
             {
                 digit = 3;
                 if (screen == HOME)
@@ -905,6 +905,11 @@ void ParmMode()
             RunAbout();
             DrawParmUI();
         }
+        else if (button == EXIT)
+        {
+            DiagAndConfig();
+            DrawParmUI();
+        }
         else if (button == HV_ENABLE)
         {
             screen = OUTPUT;
@@ -1100,7 +1105,15 @@ void HomeScreenUI()
                     OutputBuffer[7] = 0x6D;
                 }
                 //OutputBuffer[8] = BLANK;
-                if (lines == 1)
+                if ((lines == 2) && (sysMode == BREAKDOWN_TEST) && ((screen == HOME) || (screen == EDIT_SET)) )
+                {
+                    //-NA-
+                    OutputBuffer[9] = 0x2D;
+                    OutputBuffer[10] = 0x4E;
+                    OutputBuffer[11] = 0x41;
+                    OutputBuffer[12] = 0x2D;
+                }
+                else if (lines == 1)
                 {
                     //V
                     if ((sysMode == CURRENT_SOURCE) || (screen == EDIT_SET) || (screen == HOME))
@@ -1164,12 +1177,160 @@ void HomeScreenUI()
 
 void OutputMode()
 {
-    OutputModeUI();
-    button = NO_PRESS;
-    do
+    SayHelloCommand();
+    Write(CMD_CURSOR_OFF);
+    Write(CMD_CLEAR);
+    Write(CMD_GOHOME);
+    CloseLCD();
+    
+    int offset = 0;
+    
+    for (int lines = 0; lines < 4; ++lines)
     {
-        GotoSleep();
-    } while (button != HV_ENABLE);
+        ClearBuffer();
+        if (lines == 0)
+        {
+            //Display the System Mode
+            if (sysMode == BREAKDOWN_TEST)
+            {
+               //Breakdown
+                OutputBuffer[0] = 0x42;
+                OutputBuffer[1] = 0x72;
+                OutputBuffer[2] = 0x65;
+                OutputBuffer[3] = 0x61;
+                OutputBuffer[4] = 0x6B;
+                OutputBuffer[5] = 0x64;
+                OutputBuffer[6] = 0x6F;
+                OutputBuffer[7] = 0x77;
+                OutputBuffer[8] = 0x6E;
+                offset = 10;
+            }
+            else if (sysMode == VOLTAGE_SOURCE)
+            {
+                //Voltage
+                OutputBuffer[0] = 0x56;
+                OutputBuffer[1] = 0x6F;
+                OutputBuffer[2] = 0x6C;
+                OutputBuffer[3] = 0x74;
+                OutputBuffer[4] = 0x61;
+                OutputBuffer[5] = 0x67;
+                OutputBuffer[6] = 0x65;
+                offset = 8;
+            }
+            else if (sysMode == CURRENT_SOURCE)
+            {
+                //Current
+                OutputBuffer[0] = 0x43;
+                OutputBuffer[1] = 0x75;
+                OutputBuffer[2] = 0x72;
+                OutputBuffer[3] = 0x72;
+                OutputBuffer[4] = 0x65;
+                OutputBuffer[5] = 0x6E;
+                OutputBuffer[6] = 0x74;
+                offset = 8;
+            }
+            
+            //Mode
+            OutputBuffer[offset]  = 0x4D;
+            OutputBuffer[offset + 1] = 0x6F;
+            OutputBuffer[offset + 2] = 0x64;
+            OutputBuffer[offset + 3] = 0x65;
+        }
+        else if (lines == 1)
+        {
+            if (sysMode == CURRENT_SOURCE)
+            {
+                //I
+                OutputBuffer[0] = 0x49;
+            }
+            else
+            {
+                //V
+                OutputBuffer[0] = 0x56;
+            }
+            
+            //set:
+            OutputBuffer[1] = 0x73;
+            OutputBuffer[2] = 0x65;
+            OutputBuffer[3] = 0x74;
+            OutputBuffer[4] = COLON;
+            
+            if (sysMode == CURRENT_SOURCE)
+            {
+                offset = writeLargeNumber(0, 6, Iout);
+                OutputBuffer[offset] = NumbersBase;
+                OutputBuffer[offset + 1] = 0x75; //u
+                OutputBuffer[offset + 2] = 0x41; //A
+            }
+            else
+            {
+                offset = writeLargeNumber(0, 6, Vout);
+                OutputBuffer[offset] = 0x56; //V
+            }
+            
+        }
+        else if (lines == 2)
+        {
+            if (sysMode == CURRENT_SOURCE)
+            {
+                //I
+                OutputBuffer[0] = 0x56;
+            }
+            else
+            {
+                //V
+                OutputBuffer[0] = 0x49;
+            }
+            
+            //lim:
+            OutputBuffer[1] = 0x6C;
+            OutputBuffer[2] = 0x69;
+            OutputBuffer[3] = 0x6D;
+            OutputBuffer[4] = COLON;
+            
+            if (sysMode == CURRENT_SOURCE)
+            {
+                offset = writeLargeNumber(0, 6, Vlim);
+                OutputBuffer[offset] = 0x56; //V
+            }
+            else
+            {
+                offset = writeLargeNumber(0, 6, Ilim);
+                OutputBuffer[offset] = NumbersBase;
+                OutputBuffer[offset + 1] = 0x75; //u
+                OutputBuffer[offset + 2] = 0x41; //A
+            }
+        }
+        else if (lines == 3)
+        {
+            //(A)
+            OutputBuffer[0] = LEFT_PAR;
+            OutputBuffer[1] = 0x41;
+            OutputBuffer[2] = RIGHT_PAR;
+            
+            //Enable?
+            OutputBuffer[4] = 0x45;
+            OutputBuffer[5] = 0x6E;
+            OutputBuffer[6] = 0x61;
+            OutputBuffer[7] = 0x62;
+            OutputBuffer[8] = 0x6C;
+            OutputBuffer[9] = 0x65;
+            OutputBuffer[10] = 0x3F;
+        }
+        WriteAndClose();
+    }
+    
+    GotoSleep();
+    if (button == BUTTON_A)
+    {
+        OutputModeUI();
+        button = NO_PRESS;
+        do
+        {
+            GotoSleep();
+        } while (button != HV_ENABLE);
+    }
+    
     button = NO_PRESS;
     screen = HOME;
 }
@@ -1177,7 +1338,6 @@ void OutputMode()
 void OutputModeUI()
 {
     SayHelloCommand();
-    Write(CMD_CURSOR_OFF);
     Write(CMD_CLEAR);
     Write(CMD_GOHOME);
     CloseLCD();
@@ -1188,12 +1348,12 @@ void OutputModeUI()
         ClearBuffer();
         if (sysMode != BREAKDOWN_TEST)
         {
-            if (lines < 2)
+            if (lines == 0)
             {
                 //V
                 OutputBuffer[0] = 0x56;
             }
-            else
+            else if (lines == 2)
             {
                 //I
                 OutputBuffer[0] = 0x49;
