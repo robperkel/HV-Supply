@@ -94,6 +94,7 @@ void ModeSelect(); //Select a Mode
 void DrawLimitUI();
 
 void DiagAndConfig();
+void DiagMenu();
 
 Button button = NO_PRESS;
 Screen screen = HOME;
@@ -1578,6 +1579,8 @@ void DiagAndConfig()
         else if (button == BUTTON_C)
         {
             //Diagnostic Menu
+            DiagMenu();
+            good = 0;
         }
         else if (button == EXIT)
         {
@@ -1591,6 +1594,119 @@ void DiagAndConfig()
         }
     } while(good == 1);
     button = NO_PRESS;
+}
+
+void DiagMenu()
+{
+    SayHelloCommand();
+    Write(CMD_CLEAR);
+    Write(CMD_GOHOME);
+    CloseLCD();
+    
+    int counter = 0;
+    
+    for (int lines = 0; lines < 4; ++lines)
+    {
+        ClearBuffer();
+        if (lines != 0)
+        {
+            OutputBuffer[0] = LEFT_PAR;
+            OutputBuffer[1] = counter + 0x41;
+            OutputBuffer[2] = RIGHT_PAR;
+            counter++;
+        }
+        
+        if (lines == 0)
+        {
+            //Diagnostics
+            OutputBuffer[0] = 0x44;
+            OutputBuffer[1] = 0x69;
+            OutputBuffer[2] = 0x61;
+            OutputBuffer[3] = 0x67;
+            OutputBuffer[4] = 0x6E;
+            OutputBuffer[5] = 0x6F;
+            OutputBuffer[6] = 0x73;
+            OutputBuffer[7] = 0x74;
+            OutputBuffer[8] = 0x69;
+            OutputBuffer[9] = 0x63;
+            OutputBuffer[10] = 0x73;
+        }
+        else if (lines == 1)
+        {
+            //Reset
+            OutputBuffer[4] = 0x52;
+            OutputBuffer[5] = 0x65;
+            OutputBuffer[6] = 0x73;
+            OutputBuffer[7] = 0x65;
+            OutputBuffer[8] = 0x74;
+        }
+        else if (lines == 2)
+        {
+            //Comm. Test
+            OutputBuffer[4] = 0x43;
+            OutputBuffer[5] = 0x6F;
+            OutputBuffer[6] = 0x6D;
+            OutputBuffer[7] = 0x6D;
+            OutputBuffer[8] = 0x2E;
+            
+            OutputBuffer[10] = 0x54;
+            OutputBuffer[11] = 0x65;
+            OutputBuffer[12] = 0x73;
+            OutputBuffer[13] = 0x74;
+        }
+        else if (lines == 3)
+        {
+            //Calibration
+            OutputBuffer[4] = 0x43;
+            OutputBuffer[5] = 0x61;
+            OutputBuffer[6] = 0x6C;
+            OutputBuffer[7] = 0x69;
+            OutputBuffer[8] = 0x62;
+            OutputBuffer[9] = 0x72;
+            OutputBuffer[10] = 0x61;
+            OutputBuffer[11] = 0x74;
+            OutputBuffer[12] = 0x69;
+            OutputBuffer[13] = 0x6F;
+            OutputBuffer[14] = 0x6E;
+        }
+       
+        WriteAndClose();
+    }
+    
+    int optionOK = 0;
+    
+    do {
+        GotoSleep();
+        if (button == BUTTON_A)
+        {
+            Vout = 0;
+            Iout = 0;
+            Vlim = 0;
+            Ilim = 0;
+            sysMode = VOLTAGE_SOURCE;
+
+            WriteSettingsToMemory();
+            LoadSettingsFromMemory();
+            optionOK = 1;
+        }
+        else if (button == BUTTON_B)
+        {
+            //Comm Check
+            optionOK = 1;
+        }
+        else if (button == BUTTON_C)
+        {
+            //Cal.
+            optionOK = 1;
+        }
+        else if (button == EXIT)
+        {
+            //Exit
+            optionOK = 1;
+        }
+    } while(optionOK == 0);
+    
+    
 }
 
 void WriteAndClose()
