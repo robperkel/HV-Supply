@@ -129,7 +129,8 @@ void main(void) {
     //Fosc = 4MHz, 1MHz Output, 1uS Cycle   
     
     TRISA = 0b00011110; //SELECT B,A,C DRDY[4-1], WDT_OUT
-    PORTA = 0b1010001; //
+    PORTA = 0xE0; //SPI 7, x4 X, WDT = 0
+        
     PORTB = 0xFF;
     TRISB = 0x0;
     TRISC = 0xFC; //0b1111 0b1100
@@ -1370,10 +1371,20 @@ void OutputModeUI()
 
             if (lines % 2 == 0)
             {
-                //set
-                OutputBuffer[1] = 0x73;
-                OutputBuffer[2] = 0x65;
-                OutputBuffer[3] = 0x74;
+                if (((sysMode == VOLTAGE_SOURCE) && (lines == 0)) || ((sysMode == CURRENT_SOURCE) && (lines == 2)))
+                {
+                    //set
+                    OutputBuffer[1] = 0x73;
+                    OutputBuffer[2] = 0x65;
+                    OutputBuffer[3] = 0x74;
+                }
+                else
+                {
+                    //max
+                    OutputBuffer[1] = 0x6D;
+                    OutputBuffer[2] = 0x61;
+                    OutputBuffer[3] = 0x78;
+                }
             }
             else{
                 //out

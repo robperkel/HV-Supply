@@ -39,22 +39,19 @@ extern "C" {
     
     inline void revertSPIchannel()
     {
-        PORTA = 0xE0;
+        PORTA = 0xE0; //Return to CH 7
     }
     
     void interrupt high_priority WDT_Timer()
     {
-        if (PIR0bits.TMR0IF)
+       if (PIR0bits.TMR0IF)
         {
             //Timer0 Overflow!
             PIR0bits.TMR0IF = 0b0;
             
-            PORTAbits.RA0 = 0b0;
+            LATAbits.LA0 = 0b1;
             _delay(5);
-            asm("CLRWDT");
-            PORTAbits.RA0 = 0b1;
-            _delay(5);
-            PORTAbits.RA0 = 0b0;
+            LATAbits.LA0 = 0b0;
         }
     }
     
