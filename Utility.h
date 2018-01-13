@@ -57,6 +57,15 @@ extern "C" {
             PORTAbits.RA0 = 0b0;
         }
     }
+    
+    /*
+     * Validates Proper System Operation
+     * Will Clear the Screen
+     */
+    int CheckSPI()
+    {
+        return 0;
+    }
 
 #ifdef	__cplusplus
 }

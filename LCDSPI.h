@@ -36,7 +36,7 @@ inline void CloseLCD();
 
 inline void _WriteBit();
 void WriteLine(); //Writes the line of text stored in [buffer] to the LCD. Must be PRE-CONFIGURED!
-inline void Write(uchar data); //Write a command or data to the processor
+inline void WriteLCD(uchar data); //Write a command or data to the processor
 
 void AdvanceLine();
 void SetLine(uint line);
@@ -68,24 +68,24 @@ extern "C" {
         SayHelloWrite(); //IDK why this works...
         SayHelloCommand(); //Open Command Mode
         
-      //  Write(0x0); //Turn off the display
+      //  WriteLCD(0x0); //Turn off the display
         //Clear any RAM
-        Write(CMD_CLEAR);
-        Write(CMD_CURSOR_OFF);
+        WriteLCD(CMD_CLEAR);
+        WriteLCD(CMD_CURSOR_OFF);
         //Move the cursor to the top.
-        Write(goHome);
+        WriteLCD(goHome);
         //Turn on the Display
-        Write(on);
+        WriteLCD(on);
         //Enable RE for Font and Line Setup
-        Write(setup_re);
+        WriteLCD(setup_re);
         //Set BDC, BGC
-        Write(rev);
+        WriteLCD(rev);
         //Setup Font and Line
         //0b 0000 1011
-        Write(setup_font);
+        WriteLCD(setup_font);
         //Disable RE
         //0b 0010 1000
-        Write(disable_re);
+        WriteLCD(disable_re);
 
         CloseLCD();
     }
@@ -155,13 +155,13 @@ extern "C" {
     {
         for (uint i = 0; i < 20; i++)
         {
-            Write(OutputBuffer[i]);
+            WriteLCD(OutputBuffer[i]);
         }
         //CloseLCD();
         //AdvanceLine();
     }
     
-    inline void Write(uchar cmd)
+    inline void WriteLCD(uchar cmd)
     {
         //Write output
         for (uint i = 0; i < 4; ++i)
@@ -202,7 +202,7 @@ extern "C" {
         uchar command = 0x80;
         command |= MemAddr;
         SayHelloCommand();
-        Write(command);
+        WriteLCD(command);
         CloseLCD();
     }*/
     
@@ -212,7 +212,7 @@ extern "C" {
         uint pos = line * 0x20;
         command |= pos;
         SayHelloCommand();
-        Write(command);
+        WriteLCD(command);
         CloseLCD();
     }*/
     

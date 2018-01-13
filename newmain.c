@@ -241,7 +241,7 @@ void main(void) {
                 }
                 sysDir = VOLTAGE;
                 SayHelloCommand();
-                Write(CMD_CURSOR_ON);
+                WriteLCD(CMD_CURSOR_ON);
                 CloseLCD();
                 RestoreCursor(digit);
             }
@@ -260,7 +260,7 @@ void main(void) {
                 }
                 sysDir = CURRENT;
                 SayHelloCommand();
-                Write(CMD_CURSOR_ON);
+                WriteLCD(CMD_CURSOR_ON);
                 CloseLCD();
                 RestoreCursor(digit);
             }
@@ -336,7 +336,7 @@ void main(void) {
             if (button == EXIT)
             {
                 SayHelloCommand();
-                Write(CMD_CURSOR_OFF);
+                WriteLCD(CMD_CURSOR_OFF);
                 CloseLCD();
                 if (screen == EDIT_SET)
                 {
@@ -350,7 +350,7 @@ void main(void) {
             else if (button == HV_ENABLE)
             {
                 SayHelloCommand();
-                Write(CMD_CURSOR_OFF);
+                WriteLCD(CMD_CURSOR_OFF);
                 CloseLCD();
                 screen = OUTPUT;
                 OutputMode();
@@ -501,11 +501,11 @@ void RestoreCursor(int digit)
     SayHelloCommand();
     if ((sysDir == VOLTAGE))
     {
-        Write(0x80 | (0x29 + (3 - digit)));
+        WriteLCD(0x80 | (0x29 + (3 - digit)));
     }
     else if ((sysDir == CURRENT))
     {
-        Write(0x80 | (0x49 + (3 - digit)));
+        WriteLCD(0x80 | (0x49 + (3 - digit)));
     }
     CloseLCD();
 }
@@ -561,9 +561,9 @@ void interrupt low_priority ButtonHit()
 void RunAbout()
 {
     SayHelloCommand();
-    Write(CMD_CLEAR);
-    Write(CMD_GOHOME);
-    Write(CMD_CURSOR_OFF);
+    WriteLCD(CMD_CLEAR);
+    WriteLCD(CMD_GOHOME);
+    WriteLCD(CMD_CURSOR_OFF);
     CloseLCD();
     
     for (int lines = 0; lines < 4; ++lines)
@@ -676,9 +676,9 @@ void RunAbout()
     
     IOCCF = 0x0;
     SayHelloCommand();
-    Write(CMD_CLEAR);
-    Write(CMD_GOHOME);
-    Write(CMD_CURSOR_OFF);
+    WriteLCD(CMD_CLEAR);
+    WriteLCD(CMD_GOHOME);
+    WriteLCD(CMD_CURSOR_OFF);
     CloseLCD();
     
     for (int lines = 0; lines < 4; ++lines)
@@ -923,9 +923,9 @@ void ParmMode()
 void DrawParmUI()
 {
     SayHelloCommand();
-    Write(CMD_CLEAR);
-    Write(CMD_GOHOME);
-    Write(CMD_CURSOR_OFF);
+    WriteLCD(CMD_CLEAR);
+    WriteLCD(CMD_GOHOME);
+    WriteLCD(CMD_CURSOR_OFF);
     CloseLCD();
     uchar base = 0x41;
     for (int lines = 0; lines < 4; ++lines)
@@ -996,8 +996,8 @@ void DrawParmUI()
 void HomeScreenUI()
 {
     SayHelloCommand();
-    Write(CMD_CLEAR);
-    Write(CMD_GOHOME);
+    WriteLCD(CMD_CLEAR);
+    WriteLCD(CMD_GOHOME);
     CloseLCD();
     uchar base = 0x41;//'A'
     for (int lines = 0; lines < 4; ++lines)
@@ -1179,9 +1179,9 @@ void HomeScreenUI()
 void OutputMode()
 {
     SayHelloCommand();
-    Write(CMD_CURSOR_OFF);
-    Write(CMD_CLEAR);
-    Write(CMD_GOHOME);
+    WriteLCD(CMD_CURSOR_OFF);
+    WriteLCD(CMD_CLEAR);
+    WriteLCD(CMD_GOHOME);
     CloseLCD();
     
     int offset = 0;
@@ -1347,8 +1347,8 @@ void OutputMode()
 void OutputModeUI()
 {
     SayHelloCommand();
-    Write(CMD_CLEAR);
-    Write(CMD_GOHOME);
+    WriteLCD(CMD_CLEAR);
+    WriteLCD(CMD_GOHOME);
     CloseLCD();
     
     //Line 1
@@ -1488,8 +1488,8 @@ void DiagAndConfig()
 {
     button = NO_PRESS;
     SayHelloCommand();
-    Write(CMD_CLEAR);
-    Write(CMD_GOHOME);
+    WriteLCD(CMD_CLEAR);
+    WriteLCD(CMD_GOHOME);
     CloseLCD();
         
     for (int lines = 0; lines < 4; ++lines)
@@ -1599,8 +1599,8 @@ void DiagAndConfig()
 void DiagMenu()
 {
     SayHelloCommand();
-    Write(CMD_CLEAR);
-    Write(CMD_GOHOME);
+    WriteLCD(CMD_CLEAR);
+    WriteLCD(CMD_GOHOME);
     CloseLCD();
     
     int counter = 0;
