@@ -56,6 +56,17 @@ extern "C" {
     }
     
     /*
+     * Pulses WDT Pin. Should only be called explicitly in cases
+     * where interrupts are disabled.
+     */
+    inline void pulseWDT()
+    {
+        LATAbits.LA0 = 0b1;
+        _delay(5);
+        LATAbits.LA0 = 0b0;
+    }
+    
+    /*
      * Validates Proper System Operation
      * Will Clear the Screen
      */

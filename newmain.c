@@ -103,7 +103,7 @@ SystemMode sysMode = VOLTAGE_SOURCE;
 
 
 void GotoSleep()
-{ //Note: Actually "Idles" the CPU. The [WDT] will still be active.
+{ //Note: Actually "Idles" the CPU.
     button = NO_PRESS;
     do
     {
@@ -139,6 +139,8 @@ void main(void) {
     
     T0CON0 = 0b10000010; //Turn on the timer, 8-bit mode, 1:3 divider
     T0CON1 = 0b01010000; //Use Fosc/4, Async, Scale 1:1
+    
+    //Pulse rate is ~3ms for T0
     
     T2CON = 0b00001111; //Timer2 Off, 1:1 Prescaler, 1:16 Divider
     T2HLT = 0b10101000; //Sync to Oscillator, Rising Edge Trigger, Sync to ON, One-Shop Software Mode
@@ -1854,6 +1856,7 @@ void WriteSettingsToMemory()
      */
     unsigned char address = 0x0;
     unsigned char dataToWrite = sysMode;
+    //Microchip recommended procedure
     NVMCON1 = 0x0;
     NVMCON1bits.WREN = 0b1;
     INTCONbits.GIE = 0b0;
@@ -1900,7 +1903,7 @@ void WriteSettingsToMemory()
         PIR7bits.NVMIF = 0b0;
         while (PIR7bits.NVMIF == 0b0)
         {
-            asm("CLRWDT"); //Clear the WDT
+            pulseWDT();
         }
         NVMCON1bits.WR = 0b0;
         PIR7bits.NVMIF = 0b0;
