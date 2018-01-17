@@ -183,7 +183,7 @@ void main(void) {
     Vcurr = 0;
     Icurr = 0;
     
-    Version = 2; //Version of the Code (Used for Display)
+    Version = 3; //Version of the Code (Used for Display)
     
     Vstop = 2500; //2.5kV
     Istop = 2000; //20mA
@@ -1338,7 +1338,7 @@ void OutputMode()
         do
         {
             GotoSleep();
-        } while (button != HV_ENABLE);
+        } while ((button != HV_ENABLE) && (button != EXIT));
     }
     
     button = NO_PRESS;
@@ -1380,10 +1380,10 @@ void OutputModeUI()
                 }
                 else
                 {
-                    //max
-                    OutputBuffer[1] = 0x6D;
-                    OutputBuffer[2] = 0x61;
-                    OutputBuffer[3] = 0x78;
+                    //lim
+                    OutputBuffer[1] = 0x6C;
+                    OutputBuffer[2] = 0x69;
+                    OutputBuffer[3] = 0x6D;
                 }
             }
             else{
