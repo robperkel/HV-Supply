@@ -137,7 +137,7 @@ void main(void) {
     ANSELC = 0x03; //0b0000 0b0011
     PORTC = 0x0;
     
-    T0CON0 = 0b10000100; //Turn on the timer, 8-bit mode, 1:8 divider
+    T0CON0 = 0b10000010; //Turn on the timer, 8-bit mode, 1:3 divider
     T0CON1 = 0b01010000; //Use Fosc/4, Async, Scale 1:1
     
     T2CON = 0b00001111; //Timer2 Off, 1:1 Prescaler, 1:16 Divider
