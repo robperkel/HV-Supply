@@ -62,11 +62,11 @@
 #pragma config EBTRB = OFF      // Boot Block Table Read Protection bit (Boot Block (000000-0007FFh) not protected from table reads executed in other blocks)
 
 typedef enum {
-    OUTPUT = -1, ABOUT, HOME, EDIT_SET, EDIT_LIM, LIM_HOME, PARM_HOME, MODE
+    EDIT = 1, OUTPUT = 2, ABOUT = 4, HOME = 8, MODE = 16
 } Screen;
 
 typedef enum {
-    VOLTAGE_SOURCE = 0, CURRENT_SOURCE, BREAKDOWN_TEST
+    VOLTAGE_SOURCE = 1, CURRENT_SOURCE = 2, BREAKDOWN_TEST = 4
 } SystemMode;
 
 typedef enum{
@@ -81,7 +81,7 @@ typedef enum{
 
 void WriteAndClose();
 
-void HomeScreenUI(); //Main Loop
+void HomeScreenUI(int lineEditing); //Main Loop
 
 void OutputModeUI(); //Draw the Output
 void OutputMode(); //Handles the Output Systems
@@ -101,6 +101,7 @@ Screen screen = HOME;
 Modification sysDir = VOLTAGE;
 SystemMode sysMode = VOLTAGE_SOURCE;
 
+#define IS_EDIT (screen & EDIT != 0)
 
 void GotoSleep()
 { //Note: Actually "Idles" the CPU.
@@ -114,7 +115,7 @@ void GotoSleep()
 void LoadSettingsFromMemory();
 void WriteSettingsToMemory();
 
-void RestoreCursor(int digit);
+void RestoreCursor(int lineEdit, int digit);
 void interrupt low_priority ButtonHit();
 
 
@@ -185,13 +186,14 @@ void main(void) {
     Vcurr = 0;
     Icurr = 0;
     
-    Version = 3; //Version of the Code (Used for Display)
+    Version = 4; //Version of the Code (Used for Display)
     
     Vstop = 2500; //2.5kV
     Istop = 2000; //20mA
         
     int inCode = 0;
     int digit = 0;
+    int lineEdit = 0;
     
     int* digit_ptr = 0;
     
@@ -213,7 +215,7 @@ void main(void) {
     
     digit_ptr = 0x0;
     
-    HomeScreenUI();
+    HomeScreenUI(-1);
     while (1 == 1)
     {
         if (inCode == 0)
@@ -227,58 +229,59 @@ void main(void) {
             konami = 0;
         }
         GotoSleep();
-        if ((screen == HOME) || (screen == LIM_HOME))
+        if ((screen == HOME))
         {
-            if ((button == BUTTON_A) && (konami != 9) && (((screen == HOME) && (sysMode != CURRENT_SOURCE)) || ((screen == LIM_HOME) && (sysMode == CURRENT_SOURCE))))
+            if (button == BUTTON_A)
             {
-                digit = 3;
-                if (screen == HOME)
-                {
-                    digit_ptr = &VOutDigits[3];
-                    screen = EDIT_SET;
-                }
-                else
-                {
-                    digit_ptr = &VLimDigits[3];
-                    screen = EDIT_LIM;
-                }
-                sysDir = VOLTAGE;
-                SayHelloCommand();
-                WriteLCD(CMD_CURSOR_ON);
-                CloseLCD();
-                RestoreCursor(digit);
-            }
-            else if ((button == BUTTON_B) && (konami != 8) && (((screen == HOME) && (sysMode == CURRENT_SOURCE)) || ((screen == LIM_HOME) && (sysMode != CURRENT_SOURCE))))
-            {
-                digit = 3;
-                if (screen == HOME)
-                {
-                    digit_ptr = &IOutDigits[3];
-                    screen = EDIT_SET;
-                } 
-                else
-                {
-                    digit_ptr = &ILimDigits[3];
-                    screen = EDIT_LIM;
-                }
-                sysDir = CURRENT;
-                SayHelloCommand();
-                WriteLCD(CMD_CURSOR_ON);
-                CloseLCD();
-                RestoreCursor(digit);
-            }
-            else if (button == BUTTON_C)
-            {
-                screen = PARM_HOME;
-                ParmMode();
+                //Set Mode
+                screen = MODE;
+                ModeSelect();
                 if (screen == OUTPUT)
                 {
                     OutputMode();
                 }
             }
-            else if (button == BUTTON_D)
+            else if ((button == BUTTON_B))
             {
-                continue;
+                digit = 3;
+                if (sysMode != CURRENT_SOURCE)
+                {
+                    digit_ptr = &VOutDigits[3];
+                    screen = HOME & EDIT;
+                    sysDir = VOLTAGE;
+                }
+                else
+                {
+                    digit_ptr = &IOutDigits[3];
+                    screen = HOME & EDIT;
+                    sysDir = CURRENT;
+                }
+                SayHelloCommand();
+                WriteLCD(CMD_CURSOR_ON);
+                CloseLCD();
+                RestoreCursor(lineEdit, digit);
+                lineEdit = 1;
+            }
+            else if ((button == BUTTON_C))
+            {
+                digit = 3;
+                if (sysMode != CURRENT_SOURCE)
+                {
+                    digit_ptr = &ILimDigits[3];
+                    screen = HOME & EDIT;
+                    sysDir = CURRENT;
+                } 
+                else
+                {
+                    digit_ptr = &VLimDigits[3];
+                    screen = HOME & EDIT;
+                    sysDir = VOLTAGE;
+                }
+                SayHelloCommand();
+                WriteLCD(CMD_CURSOR_ON);
+                CloseLCD();
+                RestoreCursor(lineEdit, digit);
+                lineEdit = 2;
             }
             else if (button == EXIT)
             {
@@ -334,21 +337,14 @@ void main(void) {
                 continue;
             }
         }
-        else if ((screen == EDIT_SET) || (screen == EDIT_LIM))
+        else
         {
             if (button == EXIT)
             {
                 SayHelloCommand();
                 WriteLCD(CMD_CURSOR_OFF);
                 CloseLCD();
-                if (screen == EDIT_SET)
-                {
-                    screen = HOME;
-                }
-                else
-                {
-                    screen = LIM_HOME;
-                }
+                screen = HOME;
             }
             else if (button == HV_ENABLE)
             {
@@ -365,7 +361,7 @@ void main(void) {
                     {
                         digit_ptr++;
                         digit++;
-                        RestoreCursor(digit);
+                        RestoreCursor(lineEdit, digit);
                     }
                     continue;
                     break;
@@ -375,7 +371,7 @@ void main(void) {
                     int dif = target - digit;
                     digit += dif;
                     digit_ptr += dif;
-                    RestoreCursor(digit);
+                    RestoreCursor(lineEdit, digit);
                     continue;
                     break;
                 }
@@ -385,7 +381,7 @@ void main(void) {
                     int dif = target - digit;
                     digit += dif;
                     digit_ptr += dif;
-                    RestoreCursor(digit);
+                    RestoreCursor(lineEdit, digit);
                     continue;
                     break;
                 }
@@ -395,7 +391,7 @@ void main(void) {
                     int dif = target - digit;
                     digit += dif;
                     digit_ptr += dif;
-                    RestoreCursor(digit);
+                    RestoreCursor(lineEdit, digit);
                     continue;
                     break;
                 }
@@ -405,7 +401,7 @@ void main(void) {
                     int dif = target - digit;
                     digit += dif;
                     digit_ptr += dif;
-                    RestoreCursor(digit);
+                    RestoreCursor(lineEdit, digit);
                     continue;
                     break;
                 }
@@ -414,7 +410,7 @@ void main(void) {
                     {
                         digit_ptr--;
                         digit--;
-                        RestoreCursor(digit);
+                        RestoreCursor(lineEdit, digit);
                     }
                     continue;
                     break;
@@ -436,7 +432,7 @@ void main(void) {
         }
         if (sysDir == VOLTAGE)
         {
-            if (screen == EDIT_SET)
+            if (sysMode != CURRENT_SOURCE)
             {
                 
                 Vout = VOutDigits[3] * 1000 + VOutDigits[2] * 100 + VOutDigits[1] * 10 + VOutDigits[0];
@@ -449,7 +445,7 @@ void main(void) {
                     Vout = Vstop;
                 }
             }
-            else if (screen == EDIT_LIM)
+            else
             {
                 Vlim = VLimDigits[3] * 1000 + VLimDigits[2] * 100 + VLimDigits[1] * 10 + VLimDigits[0];
                 if (Vlim > Vstop)
@@ -464,7 +460,7 @@ void main(void) {
         }
         else if (sysDir == CURRENT)
         {
-            if (screen == EDIT_SET)
+            if (sysMode == CURRENT_SOURCE)
             {
                 Iout = IOutDigits[3] * 1000 + IOutDigits[2] * 100 + IOutDigits[1] * 10 + IOutDigits[0];
                 if (Iout > Istop)
@@ -476,7 +472,7 @@ void main(void) {
                     Iout = Istop;
                 }
             }
-            else if (screen == EDIT_LIM)
+            else
             {
                 Ilim = ILimDigits[3] * 1000 + ILimDigits[2] * 100 + ILimDigits[1] * 10 + ILimDigits[0];
                 if (Ilim > Istop)
@@ -489,24 +485,29 @@ void main(void) {
                 }
             }
         }
-        HomeScreenUI();
-        if ((screen == EDIT_SET) || (screen == EDIT_LIM))
+        
+        if (screen != HOME)
         {
-            RestoreCursor(digit);
+            HomeScreenUI(lineEdit);
+            RestoreCursor(lineEdit, digit);
+        }
+        else
+        {
+            HomeScreenUI(-1);
         }
         //ButtonHit();
     }
     return;
 }
 
-void RestoreCursor(int digit)
+void RestoreCursor(int lineEdit, int digit)
 {
     SayHelloCommand();
-    if ((sysDir == VOLTAGE))
+    if ((lineEdit == 1))
     {
         WriteLCD(0x80 | (0x29 + (3 - digit)));
     }
-    else if ((sysDir == CURRENT))
+    else if ((lineEdit == 2))
     {
         WriteLCD(0x80 | (0x49 + (3 - digit)));
     }
@@ -763,6 +764,10 @@ void RunAbout()
 
 void ModeSelect()
 {
+    SayHelloCommand();
+    WriteLCD(CMD_CLEAR);
+    WriteLCD(CMD_GOHOME);
+    CloseLCD();
     uchar letter = 0x41;
     for (int lines = 0; lines < 4; ++lines)
     {
@@ -852,21 +857,21 @@ void ModeSelect()
         if (button == BUTTON_A)
         {
             sysMode = VOLTAGE_SOURCE;
-            screen = PARM_HOME;
+            screen = HOME;
         }
         else if (button == BUTTON_B)
         {
             sysMode = CURRENT_SOURCE;
-            screen = PARM_HOME;
+            screen = HOME;
         }
         else if (button == BUTTON_C)
         {
             sysMode = BREAKDOWN_TEST;
-            screen = PARM_HOME;
+            screen = HOME;
         }
         else if (button == EXIT)
         {
-            screen = PARM_HOME;
+            screen = HOME;
         }
         else if (button == HV_ENABLE)
         {
@@ -876,7 +881,7 @@ void ModeSelect()
     button = NO_PRESS;
 }
 
-void ParmMode()
+/*void ParmMode()
 {
     DrawParmUI();
     button = NO_PRESS;
@@ -994,184 +999,168 @@ void DrawParmUI()
         }
         WriteAndClose();
     }
-}
+} */
 
-void HomeScreenUI()
+void HomeScreenUI(int lineEditing)
 {
     SayHelloCommand();
     WriteLCD(CMD_CLEAR);
     WriteLCD(CMD_GOHOME);
     CloseLCD();
     uchar base = 0x41;//'A'
+    uint pos = 0;
     for (int lines = 0; lines < 4; ++lines)
     {
         ClearBuffer();
+        if (lines == 3)
+        {
+            
+        }
+        else if (screen == HOME)
+        {   //(A), (B), (C)
+            OutputBuffer[0] = LEFT_PAR;
+            OutputBuffer[1] = base;
+            OutputBuffer[2] = RIGHT_PAR;
+        }
+        else if (lines == lineEditing)
+        {
+            //->
+            OutputBuffer[0] = 0x2D;
+            OutputBuffer[1] = 0x3E;
+        }
         if (lines == 0)
         {
-            if ((screen != EDIT_LIM) && (screen != LIM_HOME))
+            int off = 12;
+            if (sysMode == VOLTAGE_SOURCE)
             {
-                //Editing Mode
-                OutputBuffer[0] = 0x45;
-                OutputBuffer[1] = 0x64;
-                OutputBuffer[2] = 0x69;
-                OutputBuffer[3] = 0x74;
-                OutputBuffer[4] = 0x69;
-                OutputBuffer[5] = 0x6E;
-                OutputBuffer[6] = 0x67;
-                //OutputBuffer[7] = BLANK;
-                OutputBuffer[8] = 0x4D;
-                OutputBuffer[9] = 0x6F;
-                OutputBuffer[10] = 0x64;
-                OutputBuffer[11] = 0x65;
+                //Voltage
+                OutputBuffer[4] = 0x56;
+                OutputBuffer[5] = 0x6F;
+                OutputBuffer[6] = 0x6C;
+                OutputBuffer[7] = 0x74;
+                OutputBuffer[8] = 0x61;
+                OutputBuffer[9] = 0x67;
+                OutputBuffer[10] = 0x65;
+            }
+            else if (sysMode == CURRENT_SOURCE)
+            {
+                //Current
+                OutputBuffer[4] = 0x43;
+                OutputBuffer[5] = 0x75;
+                OutputBuffer[6] = 0x72;
+                OutputBuffer[7] = 0x72;
+                OutputBuffer[8] = 0x65;
+                OutputBuffer[9] = 0x6E;
+                OutputBuffer[10] = 0x74;
             }
             else
             {
-                    OutputBuffer[0] = 0x4C;
-                    OutputBuffer[1] = 0x69;
-                    OutputBuffer[2] =  0x6D;
-                    OutputBuffer[3] = 0x69;
-                    OutputBuffer[4] = 0x74;
-                    OutputBuffer[5] = 0x73;
+                //Breakdown test
+                OutputBuffer[4] = 0x42;
+                OutputBuffer[5] = 0x72;
+                OutputBuffer[6] = 0x65;
+                OutputBuffer[7] = 0x61;
+                OutputBuffer[8] = 0x6B;
+                OutputBuffer[9] = 0x64;
+                OutputBuffer[10] = 0x6F;
+                OutputBuffer[11] = 0x77;
+                OutputBuffer[12] = 0x6E;
+                off = 14;
+            }
+
+            //Mode
+            OutputBuffer[off] = 0x4D;
+            OutputBuffer[off + 1] = 0x6F;
+            OutputBuffer[off + 2] = 0x64;
+            OutputBuffer[off + 3] = 0x65;
+        }
+        else if (lines == 1)
+        {
+            //Out: 
+            OutputBuffer[4] = 0x4F;
+            OutputBuffer[5] = 0x75;
+            OutputBuffer[6] = 0x74;
+            OutputBuffer[7] = COLON;
+            
+            if (sysMode == CURRENT_SOURCE)
+            {
+                pos = writeLargeNumber(1, 9, Iout);
+                OutputBuffer[pos] = NumbersBase;
+                OutputBuffer[pos + 1] = 0x75;
+                OutputBuffer[pos + 2] = 0x41;
+            }
+            else
+            {
+                pos = writeLargeNumber(1, 9, Vout);
+                OutputBuffer[pos] = 0x56;
             }
         }
-        else
+        else if (lines == 2)
         {
-            if ((screen == HOME) || (screen == LIM_HOME))
-            {   //(A), (B), (C), (D)
-                OutputBuffer[0] = LEFT_PAR;
-                OutputBuffer[1] = base;
-                OutputBuffer[2] = RIGHT_PAR;
+            //O P:
+            OutputBuffer[4] = 0x4F;
+            OutputBuffer[6] = 0x50;
+            OutputBuffer[7] = COLON;
+            if (sysMode == VOLTAGE_SOURCE)
+                OutputBuffer[5] = 0x43; //C
+            else if (sysMode == CURRENT_SOURCE)
+                OutputBuffer[5] = 0x56; //V
+            else
+            {
+                //Lim
+                OutputBuffer[4] = 0x4C;
+                OutputBuffer[5] = 0x69;
+                OutputBuffer[6] =  0x6D;
+            }
+                
+            if (((((Ilim == 0000) && (sysMode == VOLTAGE_SOURCE)) || ((Vlim == 0000) && (sysMode == CURRENT_SOURCE)))) && (lineEditing != 2))
+            {
+                //Not Set
+                OutputBuffer[9] = 0x4E;
+                OutputBuffer[10] = 0x6F;
+                OutputBuffer[11] = 0x74;
+                //(BLANK)
+                OutputBuffer[13] = 0x53;
+                OutputBuffer[14] = 0x65;
+                OutputBuffer[15] = 0x74;
             }
             else
             {
-                //->
-                if (((sysDir == VOLTAGE) && (lines == 1)) || ((sysDir == CURRENT) && (lines == 2)))
+                switch (sysMode)
                 {
-                    OutputBuffer[0] = 0x2D;
-                    OutputBuffer[1] = 0x3E;
-                }
-                
-                //OutputBuffer[0] = 0x52;
-                //OutputBuffer[1] = 0x54;
-                //OutputBuffer[2] = 0x4E;
-            }
-            //OutputBuffer[3] = BLANK;
-            if (lines == 3)
-            {
-                
-                if ((screen == EDIT_LIM) || (screen == LIM_HOME))
-                {
-                    //Return
-                    OutputBuffer[4] = 0x52;
-                    OutputBuffer[5] = 0x65;
-                    OutputBuffer[6] = 0x74;
-                    OutputBuffer[7] = 0x75;
-                    OutputBuffer[8] = 0x72;
-                    OutputBuffer[9] = 0x6E;
-                }
-                else
-                {
-                    //Parameters
-                    OutputBuffer[4] = 0x50;
-                    OutputBuffer[5] = 0x61;
-                    OutputBuffer[6] = 0x72;
-                    OutputBuffer[7] = 0x61;
-                    OutputBuffer[8] = 0x6D;
-                    OutputBuffer[9] = 0x65;
-                    OutputBuffer[10] = 0x74;
-                    OutputBuffer[11] = 0x65;
-                    OutputBuffer[12] = 0x72;
-                    OutputBuffer[13] = 0x73;
-                }
-                
-            }
-            else
-            {
-                OutputBuffer[4] = 0x56; //V
-                if (lines == 2)
-                {
-                    //I
-                    OutputBuffer[4] = 0x49;
-                }
-                
-                if ((screen == EDIT_SET) || (screen == HOME))
-                {
-                    //set
-                    OutputBuffer[5] = 0x73;
-                    OutputBuffer[6] = 0x65;
-                    OutputBuffer[7] = 0x74;
-                }
-                else if ((screen == EDIT_LIM) || (screen == LIM_HOME))
-                {
-                    //lim
-                    OutputBuffer[5] = 0x6C;
-                    OutputBuffer[6] = 0x69;
-                    OutputBuffer[7] = 0x6D;
-                }
-                //OutputBuffer[8] = BLANK;
-                if ((((lines == 1) && (sysMode == CURRENT_SOURCE)) || (lines == 2) && (sysMode != CURRENT_SOURCE)) && ((screen == HOME) || (screen == EDIT_SET)))
-                {
-                    //-NA-
-                    OutputBuffer[9] = 0x2D;
-                    OutputBuffer[10] = 0x4E;
-                    OutputBuffer[11] = 0x41;
-                    OutputBuffer[12] = 0x2D;
-                }
-                else if (lines == 1)
-                {
-                    //V
-                    if ((sysMode == CURRENT_SOURCE) || (screen == EDIT_SET) || (screen == HOME))
-                    {
-                        uint pos = 0;
-                        if ((screen != LIM_HOME) && (screen != EDIT_LIM))
-                        {
-                           pos = writeLargeNumber(1, 9, Vout);
-                        }   
-                        else
-                        {
-                            pos = writeLargeNumber(1, 9, Vlim);
-                        }
-                        OutputBuffer[pos] = 0x56;
-                    }
-                    else
-                    { //-NA-
-                        OutputBuffer[9] = 0x2D;
-                        OutputBuffer[10] = 0x4E;
-                        OutputBuffer[11] = 0x41;
-                        OutputBuffer[12] = 0x2D;
-                    }
-                    
-                }
-                else
-                {
-                    if ((sysMode != CURRENT_SOURCE) || (screen == EDIT_SET) || (screen == HOME))
-                    {
-                        //0uA
-                        uint pos = 0;
-                        if ((screen != LIM_HOME) && (screen != EDIT_LIM))
-                        {
-                             pos = writeLargeNumber(1, 9, Iout);
-                        }
-                        else
-                        {
-                             pos = writeLargeNumber(1, 9, Ilim);
-                        }
+                    case BREAKDOWN_TEST:
+                    case VOLTAGE_SOURCE:
+                        //xxxx0uA
+                        pos = writeLargeNumber(1, 9, Ilim);
                         OutputBuffer[pos] = NumbersBase;
                         OutputBuffer[pos + 1] = 0x75;
                         OutputBuffer[pos + 2] = 0x41;
-                    }
-                    else
-                    { //-NA-
-                        OutputBuffer[9] = 0x2D;
-                        OutputBuffer[10] = 0x4E;
-                        OutputBuffer[11] = 0x41;
-                        OutputBuffer[12] = 0x2D;
-                    }
+
+                        break;
+                    case CURRENT_SOURCE:
+                        //xxxxV
+                        pos = writeLargeNumber(1, 9, Vlim);
+                        OutputBuffer[pos] = 0x56;
+                        break;
                 }
-                
             }
-            base++;
         }
+        /*else if (lines == 3)
+        {
+            //System Menu
+            OutputBuffer[4] = 0x53;
+            OutputBuffer[5] = 0x79;
+            OutputBuffer[6] = 0x73;
+            OutputBuffer[7] = 0x74;
+            OutputBuffer[8] = 0x65;
+            OutputBuffer[9] = 0x6D;
+            //Blank
+            OutputBuffer[11] = 0x4D;
+            OutputBuffer[12] = 0x65;
+            OutputBuffer[13] = 0x6E;
+            OutputBuffer[14] = 0x75;
+        }*/
+        base++;
         WriteAndClose();
         
         //writeLargeNumber(2, 9, Vout);
