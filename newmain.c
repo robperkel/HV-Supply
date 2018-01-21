@@ -83,15 +83,16 @@ void WriteAndClose();
 
 void HomeScreenUI(int lineEditing); //Main Loop
 
-void OutputModeUI(); //Draw the Output
+void OutputModeUI(int isLimiting); //Draw the Output
 void OutputMode(); //Handles the Output Systems
 
-void DrawParmUI(); //Draws the UI
+/*
+ * void DrawParmUI(); //Draws the UI
+ * void ParmMode(); //Parm Edit Mode Loop
+ */
 
-void ParmMode(); //Parm Edit Mode Loop
 void RunAbout(); //Info / Welcome Screen
 void ModeSelect(); //Select a Mode
-void DrawLimitUI();
 
 void DiagAndConfig();
 void DiagMenu();
@@ -100,8 +101,6 @@ Button button = NO_PRESS;
 Screen screen = HOME;
 Modification sysDir = VOLTAGE;
 SystemMode sysMode = VOLTAGE_SOURCE;
-
-#define IS_EDIT (screen & EDIT != 0)
 
 void GotoSleep()
 { //Note: Actually "Idles" the CPU.
@@ -119,7 +118,7 @@ void RestoreCursor(int lineEdit, int digit);
 void interrupt low_priority ButtonHit();
 
 
-static int Version;
+const volatile int Version = 5;
 unsigned long Vcurr;
 unsigned long Icurr;
 
@@ -186,7 +185,7 @@ void main(void) {
     Vcurr = 0;
     Icurr = 0;
     
-    Version = 4; //Version of the Code (Used for Display)
+    //Version = 5; //Version of the Code (Used for Display)
     
     Vstop = 2500; //2.5kV
     Istop = 2000; //20mA
@@ -1178,6 +1177,7 @@ void OutputMode()
     
     int offset = 0;
     
+    //Renders the Enable? Prompt
     for (int lines = 0; lines < 4; ++lines)
     {
         ClearBuffer();
@@ -1322,13 +1322,71 @@ void OutputMode()
     }
     
     GotoSleep();
+    
+    Vcurr = 0;
+    Icurr = 0;
+    
     if (button == BUTTON_A)
     {
-        OutputModeUI();
+        int isLimiting = -1;
         button = NO_PRESS;
+        int scale = 1;
         do
         {
+            OutputModeUI(isLimiting);
             GotoSleep();
+            if (button == BUTTON_UP)
+            {
+                //Demo Me Mode
+                //Simulate with 1MEG Load
+                if (sysMode == VOLTAGE_SOURCE)
+                {
+                    Vcurr += scale;
+                    Icurr = Vcurr / 2;
+                }
+                else if (sysMode == CURRENT_SOURCE)
+                {
+                    Icurr += scale;
+                    Vcurr = Icurr * 2;
+
+                }
+            }
+            else if (button == BUTTON_DOWN)
+            {
+                //Demo Me Mode
+                //Simulate with 2MEG Load
+                if (sysMode == VOLTAGE_SOURCE)
+                {
+                    if (Vcurr > 0) Vcurr -= scale;
+                    Icurr = Vcurr / 2;
+                }
+                else if (sysMode == CURRENT_SOURCE)
+                {
+                    if (Icurr > 0) Icurr -= scale;
+                    Vcurr = Icurr * 2;
+
+                }
+            }
+            else if (button == BUTTON_LEFT)
+            {
+                if (scale < 1000) scale *= 10;
+            }
+            else if (button == BUTTON_RIGHT)
+            {
+                if (scale > 1) scale /= 10;
+            }
+            
+            isLimiting = 0;
+            
+            if ((sysMode == VOLTAGE_SOURCE) && (Ilim > 0))
+            {
+                if (Icurr > Ilim) isLimiting = 1;
+            }
+            else if ((sysMode == CURRENT_SOURCE) && (Vlim > 0))
+            {
+                if (Vcurr > Vlim) isLimiting = 2;
+            }
+            
         } while ((button != HV_ENABLE) && (button != EXIT));
     }
     
@@ -1336,20 +1394,110 @@ void OutputMode()
     screen = HOME;
 }
 
-void OutputModeUI()
+void OutputModeUI(int isLimiting)
 {
     SayHelloCommand();
     WriteLCD(CMD_CLEAR);
     WriteLCD(CMD_GOHOME);
     CloseLCD();
     
-    //Line 1
+    uint pos = 0;
+    
     for (int lines = 0; lines < 4; ++lines)
     {
         ClearBuffer();
         if (sysMode != BREAKDOWN_TEST)
         {
             if (lines == 0)
+            {
+                //Output: 0000V or 00000uA
+                OutputBuffer[0] = 0x4F;
+                OutputBuffer[1] = 0x75;
+                OutputBuffer[2] = 0x74;
+                OutputBuffer[3] = 0x70;
+                OutputBuffer[4] = 0x75;
+                OutputBuffer[5] = 0x74;
+                OutputBuffer[6] = COLON;
+                
+                if (sysMode == VOLTAGE_SOURCE)
+                {
+                    //0000V
+                    pos = writeLargeNumber(0, 8, Vcurr);
+                    OutputBuffer[pos] = 0x56;
+                }
+                else
+                {
+                    //00000uA
+                    pos = writeLargeNumber(0, 8, Icurr);
+                    OutputBuffer[pos] = NumbersBase;
+                    OutputBuffer[pos + 1] = 0x75;
+                    OutputBuffer[pos + 2] = 0x41;
+                }
+            }
+            else if (lines == 1) 
+            {
+                pos = 8;
+                if ((sysMode == VOLTAGE_SOURCE)) {
+                    /*if (Ilim != 0000)
+                    {
+                        //OCP xxxx0uA,xxxx0uA
+                        OutputBuffer[0] = 0x4F;
+                        OutputBuffer[1] = 0x43;
+                        OutputBuffer[2] = 0x50;
+                        //(BLANK)
+                        pos = writeLargeNumber(0, 4, Ilim);
+                        OutputBuffer[pos] = NumbersBase;
+                        OutputBuffer[pos + 1] = 0x75;
+                        OutputBuffer[pos + 2] = 0x41;
+                        OutputBuffer[pos + 3] = COMMA;
+                        pos = pos + 4;
+                    }*/
+
+                    pos = writeLargeNumber(0, pos, Icurr);
+                    OutputBuffer[pos] = NumbersBase;
+                    OutputBuffer[pos + 1] = 0x75;
+                    OutputBuffer[pos + 2] = 0x41;
+                }
+                else if ((sysMode == CURRENT_SOURCE)) {
+                    //OVP xxxxV,xxxxV
+                    /*if ((Vlim != 0000))
+                    {
+                        OutputBuffer[0] = 0x4F;
+                        OutputBuffer[1] = 0x56;
+                        OutputBuffer[2] = 0x50;
+                        //(BLANK)
+                        pos = writeLargeNumber(0, 4, Vlim);
+                        OutputBuffer[pos] = 0x56;
+                        OutputBuffer[pos + 1] = COMMA;
+                        pos = pos + 2;
+                    }                   */
+                    pos = writeLargeNumber(0, pos, Vcurr);
+                    OutputBuffer[pos] = 0x56;
+                }
+            }
+            else if (lines == 3)
+            {
+                if (isLimiting == 1)
+                {
+                    //[OCP]
+                    OutputBuffer[0] = 0x5B;
+                    OutputBuffer[1] = 0x4F;
+                    OutputBuffer[2] = 0x43;
+                    OutputBuffer[3] = 0x50;
+                    OutputBuffer[4] = 0x5D;
+                }
+                else if (isLimiting == 2)
+                {
+                    //[OVP]
+                    OutputBuffer[0] = 0x5B;
+                    OutputBuffer[1] = 0x4F;
+                    OutputBuffer[2] = 0x56;
+                    OutputBuffer[3] = 0x50;
+                    OutputBuffer[4] = 0x5D;
+                }
+                
+            }
+            /*if (lines == 0)
             {
                 //V
                 OutputBuffer[0] = 0x56;
@@ -1415,7 +1563,7 @@ void OutputModeUI()
                 OutputBuffer[pos] = NumbersBase;
                 OutputBuffer[pos + 1] = 0x75;
                 OutputBuffer[pos + 2] = 0x41;
-            }
+            }*/
         }
         else
         {
