@@ -44,13 +44,23 @@ void SetLine(uint line);
 static uint MemAddr; //The Last Line Mem Address.
 static uchar OutputBuffer[20]; //Static Buffer of Text to be Rendered
 static uint mask = 0x80;
-static bit out = 0b0;
+static volatile bit out = 0b0;
 
 static char conv_array[6];
 
 #ifdef	__cplusplus
 extern "C" {
 #endif /* __cplusplus */
+    
+    inline void waitForTx()
+    {
+        while (PIR3bits.SSP1IF == 0b0)
+        {
+            
+        }
+        PIR3bits.SSP1IF = 0b0;
+        //asm("SLEEP");
+    }
     
     void InitDisplay()
     {
@@ -93,13 +103,18 @@ extern "C" {
     inline void SayHelloWrite()
     {
         //Chip Select LOW (60ns Setup, 20ns HOLD)
-        PORTBbits.RB2 = 0;
-        PORTBbits.RB0 = 0;
+        //PORTBbits.RB2 = 0;
+        //PORTBbits.RB0 = 0;
         //Assert CS
         setSPIchannel(6);
         state = DATA_WRITE;
-        //0b11111010;
-        out = 0b1;
+        //0b1111 1010;
+        
+        SSP1BUF = 0xFA;
+        
+        waitForTx();
+        
+        /*out = 0b1;
         _WriteBit();
         _WriteBit();
         _WriteBit();
@@ -111,17 +126,24 @@ extern "C" {
         _WriteBit();
         out = 0b0;
         _WriteBit();
+        pulseWDT();
+        INTCONbits.GIE = 0b0;*/
+
     }
     
     inline void SayHelloCommand()
     {
-        PORTBbits.RB2 = 0;
-        PORTBbits.RB0 = 0;
+        //PORTBbits.RB2 = 0;
+        //PORTBbits.RB0 = 0;
         //Chip Select LOW (60ns Setup, 20ns HOLD)
         setSPIchannel(6);
         state = COMMAND;
-        //0b11111000
-        out = 0b1;
+        //0b1111 1000
+        
+        SSP1BUF = 0xF8;
+        
+        waitForTx();
+        /*out = 0b1;
         _WriteBit();
         _WriteBit();
         _WriteBit();
@@ -131,40 +153,64 @@ extern "C" {
         _WriteBit();
         _WriteBit();
         _WriteBit();
+        pulseWDT();
+        INTCONbits.GIE = 0b0;
+         * */
     }
     
     inline void CloseLCD()
     {
         //Deassert CS
         revertSPIchannel();
-        PORTBbits.RB0 = 0;
-        PORTBbits.RB2 = 0;
+        //PORTBbits.RB0 = 0;
+        //PORTBbits.RB2 = 0;
         state = NOT_READY;
+        //INTCONbits.GIE = 0b1;
+
     }
     
     inline void _WriteBit()
     {   //Serial Setup time = 200nS; Serial Hold time = TBA (assume 200ns);
         PORTBbits.RB2 = out;
         PORTBbits.RB0 = 1; //Clock On
-        _delay(6); //Note: Originally 8
+        _delay(3);
         PORTBbits.RB0 = 0; //Clock Off
-        _delay(6);
+        _delay(3);
     }
     
     void WriteLine()
     {
         for (uint i = 0; i < 20; i++)
         {
+            //pulseWDT();
             WriteLCD(OutputBuffer[i]);
         }
-        //CloseLCD();
+        CloseLCD();
         //AdvanceLine();
     }
     
     inline void WriteLCD(uchar cmd)
     {
         //Write output
-        for (uint i = 0; i < 4; ++i)
+        uchar data = 0x0;
+        for (int i = 0; i < 8; ++i)
+        {
+            data = data | (cmd & 0b1);
+            data = data << 1;
+            cmd = cmd >> 1;
+            if (i == 3)
+            {
+                data = data << 3;
+                SSP1BUF = data;
+                data = 0x0;
+                waitForTx();
+            }
+        }
+        data = data << 3;
+        SSP1BUF = data;
+        waitForTx();
+        
+        /*for (uint i = 0; i < 4; ++i)
         {
             out = (cmd & 0b1 > 0 ? 1 : 0);
             _WriteBit();
@@ -185,7 +231,7 @@ extern "C" {
         _WriteBit();
         _WriteBit();
         _WriteBit();
-        _WriteBit();
+        _WriteBit();*/
         return;
     }
     

@@ -4,7 +4,7 @@
 
 // CONFIG1L
 #pragma config FEXTOSC = OFF    // External Oscillator mode Selection bits (Oscillator not enabled)
-#pragma config RSTOSC = HFINTOSC_1MHZ// Power-up default value for COSC bits (HFINTOSC with HFFRQ = 4 MHz and CDIV = 4:1)
+#pragma config RSTOSC = HFINTOSC_64MHZ// Power-up default value for COSC bits (HFINTOSC with HFFRQ = 64 MHz and CDIV = 1:1)
 
 // CONFIG1H
 #pragma config CLKOUTEN = OFF    // Clock Out Enable bit (CLKOUT function is enabled)
@@ -119,11 +119,11 @@ void interrupt low_priority ButtonHit();
 
 
 const volatile int Version = 5;
-unsigned long Vcurr;
-unsigned long Icurr;
+volatile unsigned long Vcurr;
+volatile unsigned long Icurr;
 
-unsigned long Vstop;
-unsigned long Istop;
+volatile unsigned long Vstop;
+volatile unsigned long Istop;
 
 void main(void) {    
     //Fosc = 4MHz, 1MHz Output, 1uS Cycle   
@@ -137,14 +137,24 @@ void main(void) {
     ANSELC = 0x03; //0b0000 0b0011
     PORTC = 0x0;
     
-    T0CON0 = 0b10000010; //Turn on the timer, 8-bit mode, 1:3 divider
+    //Timer0 Reserved for Ext. WDT
+    T0CON0 = 0b10100000; //Turn on the timer, 16-bit mode, 1:1 divider
     T0CON1 = 0b01010000; //Use Fosc/4, Async, Scale 1:1
     
-    //Pulse rate is ~3ms for T0
+    //Designed for 64MHz Sys. Clk
+    //Pulse rate is ~4ms for T0
     
+    //Used for System Delays. Not reserved.
     T2CON = 0b00001111; //Timer2 Off, 1:1 Prescaler, 1:16 Divider
     T2HLT = 0b10101000; //Sync to Oscillator, Rising Edge Trigger, Sync to ON, One-Shop Software Mode
     T2CLKCON = 0b00000101; //Runs on the 31kHz Oscillator
+    T2PR = 0xFF; //Set to the limit
+    
+    //Reserved for SPI
+    T4CON = 0b00000000; //T4 Off, No PreScale, No PostScale
+    T4HLT = 0b10100000; //No Sync, Rising Edge, ON sync w/ 2 cycle delay, Free-Running Mode
+    T4CLKCON = 0b00000010; //Use Fosc (equiv. to HFINTOS)
+    T4PR = 0x00; //Counter Reset Value
     /*long wait = 0;
     do
     {
@@ -166,6 +176,9 @@ void main(void) {
     PIE0bits.INT0IE = 0b1; //Enable INT0 Interrupt
     PIE0bits.TMR0IE = 0b1; //Enable Timer0 Interrupts
     
+    PIE4bits.TMR4IE = 0b1; //Enable Interrupt
+    IPR4bits.TMR4IP = 0b1; //High Priority
+    
     PIE4bits.TMR2IE = 0b1; //Enable Timer2 Interrupts
     
     IPR0bits.IOCIP = 0b0; //Set IOC to Low Priority
@@ -184,6 +197,20 @@ void main(void) {
     
     Vcurr = 0;
     Icurr = 0;
+    
+    SSP1DATPPS = 0b00001011; //PortB, Pin 3. MISO
+    RB2PPS = 0x0E;           //PortB, Pin 2. MOSI
+    RB0PPS = 0x0D;           //PortB, Pin 0. SCLK
+    //SSP1SSPPS is at RA5, but is disabled due to TRISx
+    
+    SSP1CON1 = 0b00101010;   //SPI Enable, SPI Clock = Fosc / (4 * (SSPxADD + 1)))
+    SSP1ADD =  15;           //Divide the clock by 16. Must be > 0. 
+    SSP1STAT = 0b11000000;   //Sample at end of clock (as Master), Transmit on Idle to Active
+    
+    //SPI Interrupts can be enabled, but an external clock is needed.
+    //PIE3bits.SSP1IE = 1;    //SPI Interrupt Enable
+    //IPR3bits.SSP1IP = 1;    //SPI Interrupt High Priority
+    //PIR3bits.SSP1IF = 0;    //Clear Interrupt
     
     //Version = 5; //Version of the Code (Used for Display)
     
@@ -1328,14 +1355,45 @@ void OutputMode()
     
     if (button == BUTTON_A)
     {
-        int isLimiting = -1;
+        int isLimiting = 0;
+        if ((sysMode == VOLTAGE_SOURCE) && (Ilim > 0))
+        {
+            isLimiting = 0x1;
+        }
+        else if ((sysMode == CURRENT_SOURCE) && (Vlim > 0))
+        {
+            isLimiting = 0x2;
+        }
         button = NO_PRESS;
         int scale = 1;
+        volatile uchar lowWord = 0x0, highWord = 0x0;
+        Vcurr = 0x0;
+        OutputModeUI(isLimiting);
         do
         {
-            OutputModeUI(isLimiting);
+            
             GotoSleep();
-            if (button == BUTTON_UP)
+            INTCONbits.GIE = 0b0;
+            pulseWDT();
+            setSPIchannel(0);
+            _delay(160);
+            //Assert SPI for ADC.
+            /*while (PORTAbits.RA1 == 0b1) {
+            }*/
+            //setSPIchannel(7);
+            for (int i = 0;i < 16; ++i)
+            {
+                PORTBbits.RB0 = 0b1;
+                _delay(10);
+                Vcurr = Vcurr << 1;
+                Vcurr = Vcurr | PORTBbits.RB3;
+                PORTBbits.RB0 = 0b0;
+                _delay(7);
+            }
+            setSPIchannel(7);
+            INTCONbits.GIE = 0b1;
+            //GotoSleep();
+            /*if (button == BUTTON_UP)
             {
                 //Demo Me Mode
                 //Simulate with 1MEG Load
@@ -1380,12 +1438,15 @@ void OutputMode()
             
             if ((sysMode == VOLTAGE_SOURCE) && (Ilim > 0))
             {
-                if (Icurr > Ilim) isLimiting = 1;
+                isLimiting = 0x1;
+                if (Icurr > Ilim) isLimiting = isLimiting | 0x4;
             }
             else if ((sysMode == CURRENT_SOURCE) && (Vlim > 0))
             {
-                if (Vcurr > Vlim) isLimiting = 2;
+                isLimiting = 0x2;
+                if (Vcurr > Vlim) isLimiting = isLimiting | 0x4;
             }
+             * */
             
         } while ((button != HV_ENABLE) && (button != EXIT));
     }
@@ -1477,7 +1538,7 @@ void OutputModeUI(int isLimiting)
             }
             else if (lines == 3)
             {
-                if (isLimiting == 1)
+                if ((isLimiting & 0x1) > 0)
                 {
                     //[OCP]
                     OutputBuffer[0] = 0x5B;
@@ -1486,7 +1547,7 @@ void OutputModeUI(int isLimiting)
                     OutputBuffer[3] = 0x50;
                     OutputBuffer[4] = 0x5D;
                 }
-                else if (isLimiting == 2)
+                else if ((isLimiting & 0x2) > 0)
                 {
                     //[OVP]
                     OutputBuffer[0] = 0x5B;
@@ -1494,6 +1555,16 @@ void OutputModeUI(int isLimiting)
                     OutputBuffer[2] = 0x56;
                     OutputBuffer[3] = 0x50;
                     OutputBuffer[4] = 0x5D;
+                }
+                if ((isLimiting & 0x4) > 0)
+                {
+                    //,[LIM]
+                    OutputBuffer[5] = COMMA;
+                    OutputBuffer[6] = 0x5B;
+                    OutputBuffer[7] = 0x4C;
+                    OutputBuffer[8] = 0x49;
+                    OutputBuffer[9] = 0x4D;
+                    OutputBuffer[10] = 0x5D;
                 }
                 
             }

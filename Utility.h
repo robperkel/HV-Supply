@@ -17,7 +17,7 @@ extern "C" {
         switch (channel)
         {
             case 0:
-                PORTA = 0x0; break;
+                LATA = 0x0; break;
             case 1:
                 PORTA = 0x40; break;
             case 2:
@@ -42,9 +42,12 @@ extern "C" {
         PORTA = 0xE0; //Return to CH 7
     }
     
-    void interrupt high_priority WDT_Timer()
+    volatile static int SPIDataOut;
+    volatile static bit clk;
+    
+    void interrupt high_priority HP_SysEvent()
     {
-       if (PIR0bits.TMR0IF)
+       if (PIR0bits.TMR0IF) //WDT Timer
         {
             //Timer0 Overflow!
             PIR0bits.TMR0IF = 0b0;
@@ -53,6 +56,19 @@ extern "C" {
             _delay(5);
             LATAbits.LA0 = 0b0;
         }
+       else if (PIR4bits.TMR4IF) //SPI Timer
+       {
+           PIR4bits.TMR4IF = 0b0; //Clear the Event
+           PORTBbits.RB0 = 0b1;
+           PORTBbits.RB2 = SPIDataOut & 0x1; //Data
+           SPIDataOut = SPIDataOut >> 1;
+           PORTBbits.RB0 = 0b0; //Clock
+            
+       }
+       else if (PIR3bits.SSP1IF) //SPI Rx / Tx Done
+       {
+           PIR3bits.SSP1IF = 0b0;
+       }
     }
     
     /*
@@ -64,6 +80,7 @@ extern "C" {
         LATAbits.LA0 = 0b1;
         _delay(5);
         LATAbits.LA0 = 0b0;
+        T4TMR = 0b0; //Clear the Timer
     }
     
     /*
