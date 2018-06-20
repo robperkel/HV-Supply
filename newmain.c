@@ -117,8 +117,7 @@ void WriteSettingsToMemory();
 void RestoreCursor(int lineEdit, int digit);
 void interrupt low_priority ButtonHit();
 
-
-const volatile int Version = 5;
+const volatile int Version = 6;
 volatile unsigned long Vcurr;
 volatile unsigned long Icurr;
 
@@ -126,13 +125,13 @@ volatile unsigned long Vstop;
 volatile unsigned long Istop;
 
 void main(void) {    
-    //Fosc = 4MHz, 1MHz Output, 1uS Cycle   
     
     TRISA = 0b00011110; //SELECT B,A,C DRDY[4-1], WDT_OUT
     PORTA = 0xE0; //SPI 7, x4 X, WDT = 0
         
-    PORTB = 0xFF;
-    TRISB = 0x0;
+    PORTB = 0xF7;
+    TRISB = 0x08;
+    ANSELB = 0xF7;
     TRISC = 0xFC; //0b1111 0b1100
     ANSELC = 0x03; //0b0000 0b0011
     PORTC = 0x0;
@@ -140,7 +139,6 @@ void main(void) {
     //Timer0 Reserved for Ext. WDT
     T0CON0 = 0b10100000; //Turn on the timer, 16-bit mode, 1:1 divider
     T0CON1 = 0b01010000; //Use Fosc/4, Async, Scale 1:1
-    
     //Designed for 64MHz Sys. Clk
     //Pulse rate is ~4ms for T0
     
@@ -149,19 +147,6 @@ void main(void) {
     T2HLT = 0b10101000; //Sync to Oscillator, Rising Edge Trigger, Sync to ON, One-Shop Software Mode
     T2CLKCON = 0b00000101; //Runs on the 31kHz Oscillator
     T2PR = 0xFF; //Set to the limit
-    
-    //Reserved for SPI
-    T4CON = 0b00000000; //T4 Off, No PreScale, No PostScale
-    T4HLT = 0b10100000; //No Sync, Rising Edge, ON sync w/ 2 cycle delay, Free-Running Mode
-    T4CLKCON = 0b00000010; //Use Fosc (equiv. to HFINTOS)
-    T4PR = 0x00; //Counter Reset Value
-    /*long wait = 0;
-    do
-    {
-        _delay(10);
-        asm("CLRWDT");
-        wait++;
-    } while (wait != 30000);*/
     
     int konami = 0; //Konami Code Counter
     
@@ -199,15 +184,15 @@ void main(void) {
     Icurr = 0;
     
     SSP1DATPPS = 0b00001011; //PortB, Pin 3. MISO
-    RB2PPS = 0x0E;           //PortB, Pin 2. MOSI
-    RB0PPS = 0x0D;           //PortB, Pin 0. SCLK
+    RB0PPS = 0x0E;           //PortB, Pin 0. MOSI
+    RB2PPS = 0x0D;           //PortB, Pin 2. SCLK
     //SSP1SSPPS is at RA5, but is disabled due to TRISx
     
     SSP1CON1 = 0b00101010;   //SPI Enable, SPI Clock = Fosc / (4 * (SSPxADD + 1)))
     SSP1ADD =  15;           //Divide the clock by 16. Must be > 0. 
-    SSP1STAT = 0b11000000;   //Sample at end of clock (as Master), Transmit on Idle to Active
+    SSP1STAT = 0b01000000;   //Sample at end of clock (as Master), Transmit on Idle to Active
     
-    //SPI Interrupts can be enabled, but an external clock is needed.
+    //SPI Interrupts can be enabled, but an external clock is needed for function during sleep / idle.
     //PIE3bits.SSP1IE = 1;    //SPI Interrupt Enable
     //IPR3bits.SSP1IP = 1;    //SPI Interrupt High Priority
     //PIR3bits.SSP1IF = 0;    //Clear Interrupt
@@ -311,10 +296,6 @@ void main(void) {
             }
             else if (button == EXIT)
             {
-                //Diagnostic Menu?
-                
-                //TEMP: Save Settings to EEPROM
-                //WriteSettingsToMemory();
                 DiagAndConfig();
                 if (screen == OUTPUT)
                 {
@@ -1371,27 +1352,34 @@ void OutputMode()
         OutputModeUI(isLimiting);
         do
         {
-            
+            OutputModeUI(isLimiting);
             GotoSleep();
-            INTCONbits.GIE = 0b0;
-            pulseWDT();
             setSPIchannel(0);
-            _delay(160);
-            //Assert SPI for ADC.
-            /*while (PORTAbits.RA1 == 0b1) {
-            }*/
-            //setSPIchannel(7);
-            for (int i = 0;i < 16; ++i)
-            {
-                PORTBbits.RB0 = 0b1;
-                _delay(10);
-                Vcurr = Vcurr << 1;
-                Vcurr = Vcurr | PORTBbits.RB3;
-                PORTBbits.RB0 = 0b0;
-                _delay(7);
-            }
+            
+            /*do {
+                //asm("NOP");
+            } while(PORTAbits.RA1 == 0b1);*/
+            _delay(12000);
+            //Pull Data, Aka: Write Garbage
+            SSP1BUF = 0x0;
+            waitForTx();
+            
+            Vcurr = SSP1BUF;
+            
+            SSP1BUF = 0x0;
+            
+            //First 2 bits are always 0. Shift 10 bits to compensate
+            Vcurr = Vcurr << 10;
+            
+            waitForTx();
+            
+            
+            //OR the new data in.
+            Vcurr = Vcurr | SSP1BUF;
+            
             setSPIchannel(7);
-            INTCONbits.GIE = 0b1;
+            //Vcurr = Vcurr * 2.5;
+            //INTCONbits.GIE = 0b1;
             //GotoSleep();
             /*if (button == BUTTON_UP)
             {

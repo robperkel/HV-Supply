@@ -65,10 +65,6 @@ extern "C" {
            PORTBbits.RB0 = 0b0; //Clock
             
        }
-       else if (PIR3bits.SSP1IF) //SPI Rx / Tx Done
-       {
-           PIR3bits.SSP1IF = 0b0;
-       }
     }
     
     /*

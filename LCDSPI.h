@@ -54,6 +54,7 @@ extern "C" {
     
     inline void waitForTx()
     {
+        //PIR3bits.SSP1IF = 0b0;
         while (PIR3bits.SSP1IF == 0b0)
         {
             
@@ -102,10 +103,7 @@ extern "C" {
     
     inline void SayHelloWrite()
     {
-        //Chip Select LOW (60ns Setup, 20ns HOLD)
-        //PORTBbits.RB2 = 0;
-        //PORTBbits.RB0 = 0;
-        //Assert CS
+        SSP1ADD =  15;
         setSPIchannel(6);
         state = DATA_WRITE;
         //0b1111 1010;
@@ -133,9 +131,7 @@ extern "C" {
     
     inline void SayHelloCommand()
     {
-        //PORTBbits.RB2 = 0;
-        //PORTBbits.RB0 = 0;
-        //Chip Select LOW (60ns Setup, 20ns HOLD)
+        SSP1ADD =  15;
         setSPIchannel(6);
         state = COMMAND;
         //0b1111 1000
@@ -169,15 +165,6 @@ extern "C" {
 
     }
     
-    inline void _WriteBit()
-    {   //Serial Setup time = 200nS; Serial Hold time = TBA (assume 200ns);
-        PORTBbits.RB2 = out;
-        PORTBbits.RB0 = 1; //Clock On
-        _delay(3);
-        PORTBbits.RB0 = 0; //Clock Off
-        _delay(3);
-    }
-    
     void WriteLine()
     {
         for (uint i = 0; i < 20; i++)
@@ -203,9 +190,9 @@ extern "C" {
                 data = data << 3;
                 SSP1BUF = data;
                 data = 0x0;
-                waitForTx();
             }
         }
+        waitForTx();
         data = data << 3;
         SSP1BUF = data;
         waitForTx();
