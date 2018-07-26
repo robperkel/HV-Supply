@@ -75,11 +75,12 @@ extern "C" {
         uchar goHome = 0x02; //Move the cursor to 0h0. Doesn't affect RAM
         
         
-        //CloseLCD();
-        SayHelloWrite(); //IDK why this works...
+        CloseLCD();
+        //SayHelloWrite(); //IDK why this works...
+        //SayHelloWrite(); //IDK why this works...
         SayHelloCommand(); //Open Command Mode
         
-      //  WriteLCD(0x0); //Turn off the display
+        //WriteLCD(0x0); //Turn off the display
         //Clear any RAM
         WriteLCD(CMD_CLEAR);
         WriteLCD(CMD_CURSOR_OFF);
@@ -87,6 +88,19 @@ extern "C" {
         WriteLCD(goHome);
         //Turn on the Display
         WriteLCD(on);
+        
+        //Wait 200ms
+        T4CON = 0x50;   //Off, 1:32 pre-scale, 1:1 post-scale
+        T4HLT = 0b10101000; //Sync, Rising Edge, ON sync, One-shot (software)
+        T4CLKCON = 0b0100;  //LF-OSC (31kHz)
+        T4PR = 194;        //200ms period
+        T4CONbits.ON = 0b1;
+        
+        while (T4CONbits.ON == 0b1)
+        {
+            //Wait...
+        }
+        
         //Enable RE for Font and Line Setup
         WriteLCD(setup_re);
         //Set BDC, BGC
@@ -97,7 +111,7 @@ extern "C" {
         //Disable RE
         //0b 0010 1000
         WriteLCD(disable_re);
-
+        //WriteLCD(CMD_CLEAR);
         CloseLCD();
     }
     
@@ -165,6 +179,14 @@ extern "C" {
 
     }
     
+    void ClearBuffer()
+    {
+        for (uint i = 0; i < 20; ++i)
+        {
+            OutputBuffer[i] = BLANK;
+        }
+    }
+    
     void WriteLine()
     {
         for (uint i = 0; i < 20; i++)
@@ -173,6 +195,7 @@ extern "C" {
             WriteLCD(OutputBuffer[i]);
         }
         CloseLCD();
+        ClearBuffer();
         //AdvanceLine();
     }
     
@@ -180,6 +203,8 @@ extern "C" {
     {
         //Write output
         uchar data = 0x0;
+        //INTCONbits.GIEH = 0b0;
+        //INTCONbits.GIEL = 0b0;
         for (int i = 0; i < 8; ++i)
         {
             data = data | (cmd & 0b1);
@@ -188,13 +213,17 @@ extern "C" {
             if (i == 3)
             {
                 data = data << 3;
+                //data = data & 0xF0;
                 SSP1BUF = data;
                 data = 0x0;
             }
         }
         waitForTx();
         data = data << 3;
+        //data = data & 0xF0;
         SSP1BUF = data;
+        //INTCONbits.GIEH = 0b1;
+        //INTCONbits.GIEL = 0b1;
         waitForTx();
         
         /*for (uint i = 0; i < 4; ++i)
@@ -248,14 +277,6 @@ extern "C" {
         WriteLCD(command);
         CloseLCD();
     }*/
-    
-    void ClearBuffer()
-    {
-        for (uint i = 0; i < 20; ++i)
-        {
-            OutputBuffer[i] = BLANK;
-        }
-    }
 
 #ifdef	__cplusplus
 }

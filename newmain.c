@@ -189,7 +189,7 @@ void main(void) {
     //SSP1SSPPS is at RA5, but is disabled due to TRISx
     
     SSP1CON1 = 0b00101010;   //SPI Enable, SPI Clock = Fosc / (4 * (SSPxADD + 1)))
-    SSP1ADD =  15;           //Divide the clock by 16. Must be > 0. 
+    SSP1ADD =  31;           //Divide the clock by 16. Must be > 0. 
     SSP1STAT = 0b01000000;   //Sample at end of clock (as Master), Transmit on Idle to Active
     
     //SPI Interrupts can be enabled, but an external clock is needed for function during sleep / idle.
@@ -1119,8 +1119,9 @@ void HomeScreenUI(int lineEditing)
                 OutputBuffer[5] = 0x69;
                 OutputBuffer[6] =  0x6D;
             }
-                
-            if (((((Ilim == 0000) && (sysMode == VOLTAGE_SOURCE)) || ((Vlim == 0000) && (sysMode == CURRENT_SOURCE)))) && (lineEditing != 2))
+            
+            if (((((Ilim == 0000) && (sysMode == VOLTAGE_SOURCE)) || 
+                    ((Vlim == 0000) && (sysMode == CURRENT_SOURCE)))) && (lineEditing != 2))
             {
                 //Not Set
                 OutputBuffer[9] = 0x4E;
@@ -1948,7 +1949,7 @@ void LoadSettingsFromMemory()
                     sysMode = NVMDAT;
                     if (sysMode == 0xFF)
                     {
-                        sysMode = 0x0;
+                        sysMode = VOLTAGE_SOURCE;
                         WriteSettingsToMemory();
                     }
                     break;
